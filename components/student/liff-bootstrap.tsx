@@ -1,11 +1,15 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import type { Route } from 'next';
 import Link from 'next/link';
 import { initializeLiff } from '@/lib/liff/client';
 import type { LineProfile } from '@/lib/types';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+
+const bindRoute: Route = '/liff/bind';
+const checkInRoute: Route = '/liff/check-in';
 
 export function LiffBootstrap() {
   const [profile, setProfile] = useState<LineProfile | null>(null);
@@ -65,10 +69,10 @@ export function LiffBootstrap() {
         </div>
       ) : null}
       <div className="flex flex-wrap gap-3 text-sm font-medium">
-        <Link href="/liff/bind" className="rounded-full bg-slate-900 px-4 py-2 text-white">
+        <Link href={bindRoute} className="rounded-full bg-slate-900 px-4 py-2 text-white">
           ผูกบัญชีนักศึกษา
         </Link>
-        <Link href="/liff/check-in" className="rounded-full border border-slate-300 px-4 py-2 text-slate-700">
+        <Link href={checkInRoute} className="rounded-full border border-slate-300 px-4 py-2 text-slate-700">
           ไปหน้าเช็กชื่อ
         </Link>
       </div>

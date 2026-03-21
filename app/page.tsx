@@ -1,6 +1,11 @@
+import type { Route } from 'next';
 import Link from 'next/link';
 
-const sections = [
+const sections: ReadonlyArray<{
+  title: string;
+  href: Route;
+  description: string;
+}> = [
   {
     title: 'นักศึกษาใน LINE LIFF',
     href: '/liff',
@@ -8,7 +13,7 @@ const sections = [
   },
   {
     title: 'แดชบอร์ดอาจารย์',
-    href: '/teacher/sessions/demo-session',
+    href: '/teacher/sessions/demo-session' as Route,
     description: 'ดูสถานะรายชื่อแบบสด แสดง QR และส่งออก CSV'
   },
   {

@@ -1,9 +1,12 @@
+import type { Route } from 'next';
 import Link from 'next/link';
 import { LiffBootstrap } from '@/components/student/liff-bootstrap';
 import { HistoryList } from '@/components/student/history-list';
 import { Card } from '@/components/ui/card';
 import { StatCard } from '@/components/ui/stat-card';
 import { demoStudentDashboard } from '@/lib/services/demo-data';
+
+const liffCheckInRoute: Route = '/liff/check-in';
 
 export default function LiffHomePage() {
   const { student, activeSessions, summary, recentHistory } = demoStudentDashboard;
@@ -31,7 +34,7 @@ export default function LiffHomePage() {
                   <p className="font-semibold text-slate-900">{session.courseCode} · {session.courseNameTh}</p>
                   <p className="mt-1 text-sm text-slate-500">ตอน {session.sectionCode} · {session.room.roomName}</p>
                 </div>
-                <Link href="/liff/check-in" className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white">
+                <Link href={liffCheckInRoute} className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white">
                   เข้า flow เช็กชื่อ
                 </Link>
               </div>

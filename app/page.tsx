@@ -13,7 +13,7 @@ const sections: ReadonlyArray<{
   },
   {
     title: 'แดชบอร์ดอาจารย์',
-    href: '/teacher/sessions/demo-session',
+    href: '/teacher/sessions/demo-session' as Route,
     description: 'ดูสถานะรายชื่อแบบสด แสดง QR และส่งออก CSV'
   },
   {

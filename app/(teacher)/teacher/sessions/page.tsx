@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { demoTeacherMonitor } from '@/lib/services/demo-data';
 
-const demoSessionRoute: Route = '/teacher/sessions/demo-session';
+const demoSessionRoute = '/teacher/sessions/demo-session' as Route;
 
 export default function TeacherSessionListPage() {
   return (

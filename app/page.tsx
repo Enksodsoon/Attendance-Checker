@@ -1,6 +1,4 @@
-import Link from 'next/link';
 
-const sections = [
   {
     title: 'นักศึกษาใน LINE LIFF',
     href: '/liff',

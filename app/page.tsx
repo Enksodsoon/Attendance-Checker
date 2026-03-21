@@ -1,11 +1,4 @@
-import type { Route } from 'next';
-import Link from 'next/link';
 
-const sections: ReadonlyArray<{
-  title: string;
-  href: Route;
-  description: string;
-}> = [
   {
     title: 'นักศึกษาใน LINE LIFF',
     href: '/liff',

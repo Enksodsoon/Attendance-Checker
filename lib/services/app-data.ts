@@ -1,3 +1,5 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type {
   AdminAuditLogItem,
   AdminCourseSection,
@@ -53,9 +55,8 @@ interface AppState {
   attempts: Record<string, AttendanceAttemptState>;
 }
 
-declare global {
-  var __attendanceCheckerAppState: AppState | undefined;
-}
+const DATA_DIR = join(process.cwd(), 'data');
+const STATE_FILE = join(DATA_DIR, 'app-state.json');
 
 function clone<T>(value: T): T {
   return structuredClone(value);
@@ -262,12 +263,25 @@ function buildInitialState(): AppState {
   };
 }
 
+function saveState(state: AppState) {
+  mkdirSync(DATA_DIR, { recursive: true });
+  writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), 'utf-8');
+}
+
+function hydrateState(state: AppState) {
+  const refreshedSession = buildActiveSession();
+  state.activeSession.window = refreshedSession.window;
+  state.activeSession.status = 'open';
+  return state;
+}
+
 function getState() {
-  if (!globalThis.__attendanceCheckerAppState) {
-    globalThis.__attendanceCheckerAppState = buildInitialState();
+  if (!existsSync(STATE_FILE)) {
+    return hydrateState(buildInitialState());
   }
 
-  return globalThis.__attendanceCheckerAppState;
+  const state = JSON.parse(readFileSync(STATE_FILE, 'utf-8')) as AppState;
+  return hydrateState(state);
 }
 
 function formatDateLabel(iso: string) {
@@ -343,6 +357,7 @@ function upsertStudentRosterEntry(decision: AttendanceDecision, checkedInAt: str
   }
 
   state.roster.unshift(row);
+  saveState(state);
 }
 
 function resolveActorLabel(profileId?: string) {
@@ -373,6 +388,7 @@ export function refreshCurrentQrToken(sessionId: string) {
   }
 
   state.qrToken = generateQrToken();
+  saveState(state);
   return state.qrToken;
 }
 
@@ -443,6 +459,8 @@ export function recordCheckInAttempt(input: {
     upsertStudentRosterEntry(input.decision, input.submittedAt);
     upsertHistory(state.activeSession.sessionId, input.decision.status, input.submittedAt);
   }
+
+  saveState(state);
 }
 
 export function createManualApprovalRequest(input: {
@@ -481,6 +499,7 @@ export function createManualApprovalRequest(input: {
     rosterEntry.approvalStatus = 'pending';
   }
 
+  saveState(state);
   return clone(queueItem);
 }
 
@@ -501,6 +520,7 @@ export function addAdminUser(input: {
   };
 
   state.adminUsers.unshift(user);
+  saveState(state);
   return clone(user);
 }
 
@@ -526,6 +546,7 @@ export function addAdminCourse(input: {
   };
 
   state.adminCourses.unshift(course);
+  saveState(state);
   return clone(course);
 }
 
@@ -548,6 +569,7 @@ export function addAdminRoom(input: {
   };
 
   state.adminRooms.unshift(room);
+  saveState(state);
   return clone(room);
 }
 
@@ -575,6 +597,7 @@ export function resolveManualApprovalRequest(input: {
     historyItem.note = `${queueItem.reasonText} · ผลการพิจารณา: ${input.status}`;
   }
 
+  saveState(state);
   return clone(queueItem);
 }
 
@@ -607,5 +630,6 @@ export function appendAuditLog(input: {
   };
 
   state.auditLogs.unshift(auditItem);
+  saveState(state);
   return clone(auditItem);
 }

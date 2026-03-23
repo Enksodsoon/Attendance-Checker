@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type {
   AdminAuditLogItem,
@@ -886,6 +886,7 @@ export function getAdminStudents() {
   return clone(
     state.students.map((student) => ({
       ...student,
+      email: state.profiles.find((profile) => profile.profileId === student.profileId)?.email ?? '',
       enrolledSectionIds: state.enrollments.filter((item) => item.studentId === student.studentId).map((item) => item.sectionId)
     }))
   ) as AdminStudentRecord[];
@@ -900,7 +901,9 @@ export function getAdminCourses() {
       courseNameTh: section.courseNameTh,
       sectionCode: section.sectionCode,
       semesterLabel: section.semesterLabel,
+      teacherProfileId: section.teacherProfileId,
       teacherName: getTeacherName(state, section.teacherProfileId),
+      roomId: section.roomId,
       roomName: getRoom(state, section.roomId)?.roomName ?? section.roomId,
       activeSessionId: state.sessions.find((item) => item.sectionId === section.sectionId && item.status === 'open')?.sessionId,
       enrolledCount: getEnrollmentCountForSection(state, section.sectionId)
@@ -974,6 +977,36 @@ export function addAdminUser(input: { name: string; email: string; role: AdminUs
   return clone(user);
 }
 
+export function updateAdminUser(input: {
+  profileId: string;
+  name: string;
+  email: string;
+  role: AdminUserRecord['role'];
+  status: UserProfile['status'];
+}) {
+  const state = getState();
+  const profile = state.profiles.find((item) => item.profileId === input.profileId);
+  if (!profile) {
+    return null;
+  }
+
+  profile.name = input.name;
+  profile.email = input.email;
+  profile.role = input.role;
+  profile.status = input.status;
+
+  if (profile.studentId) {
+    const student = state.students.find((item) => item.studentId === profile.studentId);
+    if (student) {
+      student.fullNameTh = input.name;
+      student.status = input.status;
+    }
+  }
+
+  saveState(state);
+  return clone(profile);
+}
+
 export function deleteAdminUser(profileId: string) {
   const state = getState();
   const index = state.profiles.findIndex((item) => item.profileId === profileId);
@@ -982,6 +1015,38 @@ export function deleteAdminUser(profileId: string) {
   }
 
   const [removed] = state.profiles.splice(index, 1);
+  if (removed.studentId) {
+    const linkedStudent = state.students.find((item) => item.studentId === removed.studentId);
+    state.students = state.students.filter((item) => item.studentId !== removed.studentId);
+    state.enrollments = state.enrollments.filter((item) => item.studentId !== removed.studentId);
+    state.records = state.records.filter((item) => item.studentId !== removed.studentId);
+    state.manualApprovalQueue = state.manualApprovalQueue.filter((item) => item.studentCode !== linkedStudent?.studentCode);
+    state.attempts = Object.fromEntries(
+      Object.entries(state.attempts).filter(([, attempt]) => attempt.studentId !== removed.studentId)
+    );
+  }
+
+  if (removed.teacherId) {
+    state.teachers = state.teachers.filter((item) => item.teacherId !== removed.teacherId);
+    const removedSectionIds = state.sections
+      .filter((item) => item.teacherProfileId === removed.profileId)
+      .map((item) => item.sectionId);
+    const removedSessionIds = state.sessions
+      .filter((item) => removedSectionIds.includes(item.sectionId))
+      .map((item) => item.sessionId);
+    state.sections = state.sections.filter((item) => item.teacherProfileId !== removed.profileId);
+    state.sessions = state.sessions.filter((item) => !removedSectionIds.includes(item.sectionId));
+    state.enrollments = state.enrollments.filter((item) => !removedSectionIds.includes(item.sectionId));
+    state.records = state.records.filter((item) => !removedSessionIds.includes(item.sessionId));
+    state.manualApprovalQueue = state.manualApprovalQueue.filter((item) => !removedSessionIds.includes(item.sessionId));
+    state.attempts = Object.fromEntries(
+      Object.entries(state.attempts).filter(([, attempt]) => !removedSessionIds.includes(attempt.sessionId))
+    );
+    for (const sessionId of removedSessionIds) {
+      delete state.qrTokens[sessionId];
+    }
+  }
+
   saveState(state);
   return clone(removed);
 }
@@ -1025,6 +1090,60 @@ export function addAdminStudent(input: {
   return clone(student);
 }
 
+export function updateAdminStudent(input: {
+  studentId: string;
+  studentCode: string;
+  fullNameTh: string;
+  facultyName: string;
+  departmentName: string;
+  yearLevel: number;
+  email?: string;
+  status: StudentRecord['status'];
+}) {
+  const state = getState();
+  const student = state.students.find((item) => item.studentId === input.studentId);
+  if (!student) {
+    return null;
+  }
+
+  student.studentCode = input.studentCode;
+  student.fullNameTh = input.fullNameTh;
+  student.facultyName = input.facultyName;
+  student.departmentName = input.departmentName;
+  student.yearLevel = input.yearLevel;
+  student.status = input.status;
+
+  const profile = state.profiles.find((item) => item.profileId === student.profileId);
+  if (profile) {
+    profile.name = input.fullNameTh;
+    profile.email = input.email?.trim() || `${input.studentCode}@university.ac.th`;
+    profile.status = input.status;
+  }
+
+  saveState(state);
+  return clone(student);
+}
+
+export function deleteAdminStudent(studentId: string) {
+  const state = getState();
+  const student = state.students.find((item) => item.studentId === studentId);
+  if (!student) {
+    return null;
+  }
+
+  state.students = state.students.filter((item) => item.studentId !== studentId);
+  state.profiles = state.profiles.filter((item) => item.profileId !== student.profileId);
+  state.enrollments = state.enrollments.filter((item) => item.studentId !== studentId);
+  state.records = state.records.filter((item) => item.studentId !== studentId);
+  state.manualApprovalQueue = state.manualApprovalQueue.filter((item) => item.studentCode !== student.studentCode);
+  state.attempts = Object.fromEntries(
+    Object.entries(state.attempts).filter(([, attempt]) => attempt.studentId !== studentId)
+  );
+
+  saveState(state);
+  return clone(student);
+}
+
 export function addAdminCourse(input: {
   courseCode: string;
   courseNameTh: string;
@@ -1063,6 +1182,72 @@ export function addAdminCourse(input: {
   return clone(buildSessionSummary(state, session));
 }
 
+export function updateAdminCourse(input: {
+  sectionId: string;
+  courseCode: string;
+  courseNameTh: string;
+  sectionCode: string;
+  semesterLabel: string;
+  teacherProfileId: string;
+  roomId: string;
+  sessionStatus?: SessionSummary['status'];
+}) {
+  const state = getState();
+  const section = state.sections.find((item) => item.sectionId === input.sectionId);
+  if (!section) {
+    return null;
+  }
+
+  section.courseCode = input.courseCode;
+  section.courseNameTh = input.courseNameTh;
+  section.sectionCode = input.sectionCode;
+  section.semesterLabel = input.semesterLabel;
+  section.teacherProfileId = input.teacherProfileId;
+  section.roomId = input.roomId;
+
+  const session = state.sessions.find((item) => item.sectionId === input.sectionId);
+  if (session && input.sessionStatus) {
+    session.status = input.sessionStatus;
+  }
+
+  saveState(state);
+  return clone(
+    session ? buildSessionSummary(state, session) : buildSessionSummary(state, {
+      sessionId: `virtual-${section.sectionId}`,
+      sectionId: section.sectionId,
+      status: input.sessionStatus ?? 'draft',
+      verificationMode: 'gps_qr_timewindow',
+      attendanceMode: 'check_in_only',
+      allowManualApproval: true,
+      window: buildWindow(180, 120)
+    })
+  );
+}
+
+export function deleteAdminCourse(sectionId: string) {
+  const state = getState();
+  const section = state.sections.find((item) => item.sectionId === sectionId);
+  if (!section) {
+    return null;
+  }
+
+  const sessionIds = state.sessions.filter((item) => item.sectionId === sectionId).map((item) => item.sessionId);
+  state.sections = state.sections.filter((item) => item.sectionId !== sectionId);
+  state.sessions = state.sessions.filter((item) => item.sectionId !== sectionId);
+  state.enrollments = state.enrollments.filter((item) => item.sectionId !== sectionId);
+  state.records = state.records.filter((item) => !sessionIds.includes(item.sessionId));
+  state.manualApprovalQueue = state.manualApprovalQueue.filter((item) => !sessionIds.includes(item.sessionId));
+  state.attempts = Object.fromEntries(
+    Object.entries(state.attempts).filter(([, attempt]) => !sessionIds.includes(attempt.sessionId))
+  );
+  for (const sessionId of sessionIds) {
+    delete state.qrTokens[sessionId];
+  }
+
+  saveState(state);
+  return clone(section);
+}
+
 export function addAdminRoom(input: {
   roomId: string;
   roomName: string;
@@ -1082,6 +1267,56 @@ export function addAdminRoom(input: {
   };
 
   state.rooms.unshift(room);
+  saveState(state);
+  return clone(room);
+}
+
+export function updateAdminRoom(input: {
+  roomId: string;
+  roomName: string;
+  latitude: number;
+  longitude: number;
+  radiusM: number;
+  gpsPolicy: AdminRoomRecord['gpsPolicy'];
+}) {
+  const state = getState();
+  const room = state.rooms.find((item) => item.roomId === input.roomId);
+  if (!room) {
+    return null;
+  }
+
+  room.roomName = input.roomName;
+  room.latitude = input.latitude;
+  room.longitude = input.longitude;
+  room.defaultRadiusM = input.radiusM;
+  room.gpsPolicy = input.gpsPolicy;
+
+  saveState(state);
+  return clone(room);
+}
+
+export function deleteAdminRoom(roomId: string) {
+  const state = getState();
+  const room = state.rooms.find((item) => item.roomId === roomId);
+  if (!room) {
+    return null;
+  }
+
+  const removedSectionIds = state.sections.filter((item) => item.roomId === roomId).map((item) => item.sectionId);
+  const removedSessionIds = state.sessions.filter((item) => removedSectionIds.includes(item.sectionId)).map((item) => item.sessionId);
+  state.rooms = state.rooms.filter((item) => item.roomId !== roomId);
+  state.sections = state.sections.filter((item) => item.roomId !== roomId);
+  state.sessions = state.sessions.filter((item) => !removedSectionIds.includes(item.sectionId));
+  state.enrollments = state.enrollments.filter((item) => !removedSectionIds.includes(item.sectionId));
+  state.records = state.records.filter((item) => !removedSessionIds.includes(item.sessionId));
+  state.manualApprovalQueue = state.manualApprovalQueue.filter((item) => !removedSessionIds.includes(item.sessionId));
+  state.attempts = Object.fromEntries(
+    Object.entries(state.attempts).filter(([, attempt]) => !removedSessionIds.includes(attempt.sessionId))
+  );
+  for (const sessionId of removedSessionIds) {
+    delete state.qrTokens[sessionId];
+  }
+
   saveState(state);
   return clone(room);
 }
@@ -1176,4 +1411,11 @@ export function getRoomOptions() {
       label: room.roomName
     }))
   );
+}
+
+export function resetDemoState() {
+  globalThis.__attendanceCheckerState = undefined;
+  try {
+    unlinkSync(STATE_FILE);
+  } catch {}
 }

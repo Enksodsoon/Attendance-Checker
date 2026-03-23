@@ -215,7 +215,9 @@ export interface AdminCourseSection {
   courseNameTh: string;
   sectionCode: string;
   semesterLabel: string;
+  teacherProfileId: string;
   teacherName: string;
+  roomId: string;
   roomName: string;
   activeSessionId?: string;
   enrolledCount: number;
@@ -236,6 +238,7 @@ export interface AdminStudentRecord {
   profileId: string;
   studentCode: string;
   fullNameTh: string;
+  email: string;
   facultyName: string;
   departmentName: string;
   yearLevel: number;

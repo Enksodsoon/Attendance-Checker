@@ -10,7 +10,13 @@ export function UserManagementPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', role: 'teacher' as AppRole });
+  const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
+  const [form, setForm] = useState({ name: '', email: '', role: 'teacher' as AppRole, status: 'active' as AdminUserRecord['status'] });
+
+  function resetForm() {
+    setEditingProfileId(null);
+    setForm({ name: '', email: '', role: 'teacher', status: 'active' });
+  }
 
   async function load() {
     setLoading(true);
@@ -33,15 +39,15 @@ export function UserManagementPanel() {
     setError(null);
     try {
       const response = await fetch('/api/admin/users', {
-        method: 'POST',
+        method: editingProfileId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify(editingProfileId ? { ...form, profileId: editingProfileId } : form)
       });
       if (!response.ok) {
         const json = (await response.json()) as { error?: string };
         throw new Error(json.error ?? 'บันทึกผู้ใช้ไม่สำเร็จ');
       }
-      setForm({ name: '', email: '', role: 'teacher' });
+      resetForm();
       await load();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'บันทึกผู้ใช้ไม่สำเร็จ');
@@ -62,6 +68,11 @@ export function UserManagementPanel() {
     }
   }
 
+  function startEdit(item: AdminUserRecord) {
+    setEditingProfileId(item.profileId);
+    setForm({ name: item.name, email: item.email, role: item.role, status: item.status });
+  }
+
   const roleTone = { student: 'slate', teacher: 'teal', admin: 'amber', super_admin: 'red' } as const;
 
   return (
@@ -80,10 +91,20 @@ export function UserManagementPanel() {
             <option value="admin">admin</option>
             <option value="super_admin">super_admin</option>
           </select>
+          <select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as AdminUserRecord['status'] }))} className="rounded-2xl border border-slate-300 px-4 py-3">
+            <option value="active">active</option>
+            <option value="inactive">inactive</option>
+            <option value="suspended">suspended</option>
+          </select>
         </div>
         <button type="button" onClick={handleSubmit} disabled={submitting} className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white">
-          {submitting ? 'กำลังบันทึก...' : 'เพิ่มผู้ใช้'}
+          {submitting ? 'กำลังบันทึก...' : editingProfileId ? 'อัปเดตผู้ใช้' : 'เพิ่มผู้ใช้'}
         </button>
+        {editingProfileId ? (
+          <button type="button" onClick={resetForm} className="ml-3 inline-flex items-center justify-center rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700">
+            ยกเลิกการแก้ไข
+          </button>
+        ) : null}
         {error ? <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p> : null}
       </Card>
 
@@ -105,6 +126,7 @@ export function UserManagementPanel() {
                   <td className="py-3 pr-4 text-slate-700">{item.linkedStudentCode ?? '-'}</td>
                   <td className="py-3 pr-4 text-slate-700">{item.status}</td>
                   <td className="py-3 pr-4 text-slate-700">
+                    <button type="button" onClick={() => startEdit(item)} className="mr-2 rounded-full border border-slate-300 px-3 py-1 text-xs">แก้ไข</button>
                     <button type="button" onClick={() => handleDelete(item.profileId)} className="rounded-full border border-slate-300 px-3 py-1 text-xs">ลบ</button>
                   </td>
                 </tr>

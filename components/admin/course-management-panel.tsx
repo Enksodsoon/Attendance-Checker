@@ -16,7 +16,21 @@ export function CourseManagementPanel() {
   const [roomOptions, setRoomOptions] = useState<Array<{ roomId: string; label: string }>>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
   const [form, setForm] = useState({ courseCode: '', courseNameTh: '', sectionCode: '', semesterLabel: 'ภาคการศึกษาที่ 2/2568', teacherProfileId: '', roomId: '', sessionStatus: 'draft' });
+
+  function resetForm(nextTeacherProfileId = teacherOptions[0]?.profileId ?? '', nextRoomId = roomOptions[0]?.roomId ?? '') {
+    setEditingSectionId(null);
+    setForm({
+      courseCode: '',
+      courseNameTh: '',
+      sectionCode: '',
+      semesterLabel: 'ภาคการศึกษาที่ 2/2568',
+      teacherProfileId: nextTeacherProfileId,
+      roomId: nextRoomId,
+      sessionStatus: 'draft'
+    });
+  }
 
   async function load() {
     const response = await fetch('/api/admin/courses', { cache: 'no-store' });
@@ -41,19 +55,44 @@ export function CourseManagementPanel() {
     setError(null);
     try {
       const response = await fetch('/api/admin/courses', {
-        method: 'POST',
+        method: editingSectionId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify(editingSectionId ? { ...form, sectionId: editingSectionId } : form)
       });
       const json = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(json.error ?? 'บันทึกรายวิชาไม่สำเร็จ');
-      setForm((current) => ({ ...current, courseCode: '', courseNameTh: '', sectionCode: '', sessionStatus: 'draft' }));
+      resetForm();
       await load();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'บันทึกรายวิชาไม่สำเร็จ');
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function handleDelete(sectionId: string) {
+    setError(null);
+    try {
+      const response = await fetch(`/api/admin/courses?sectionId=${sectionId}`, { method: 'DELETE' });
+      const json = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(json.error ?? 'ลบรายวิชาไม่สำเร็จ');
+      await load();
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'ลบรายวิชาไม่สำเร็จ');
+    }
+  }
+
+  function startEdit(item: AdminCourseSection) {
+    setEditingSectionId(item.sectionId);
+    setForm({
+      courseCode: item.courseCode,
+      courseNameTh: item.courseNameTh,
+      sectionCode: item.sectionCode,
+      semesterLabel: item.semesterLabel,
+      teacherProfileId: item.teacherProfileId,
+      roomId: item.roomId,
+      sessionStatus: item.activeSessionId ? 'open' : 'draft'
+    });
   }
 
   return (
@@ -77,7 +116,10 @@ export function CourseManagementPanel() {
             <option value="closed">closed</option>
           </select>
         </div>
-        <button type="button" onClick={handleSubmit} disabled={submitting} className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white">{submitting ? 'กำลังบันทึก...' : 'เพิ่มรายวิชา'}</button>
+        <button type="button" onClick={handleSubmit} disabled={submitting} className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white">{submitting ? 'กำลังบันทึก...' : editingSectionId ? 'อัปเดตรายวิชา' : 'เพิ่มรายวิชา'}</button>
+        {editingSectionId ? (
+          <button type="button" onClick={() => resetForm()} className="ml-3 inline-flex items-center justify-center rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700">ยกเลิกการแก้ไข</button>
+        ) : null}
         {error ? <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p> : null}
       </Card>
       <div className="grid gap-4">
@@ -86,6 +128,10 @@ export function CourseManagementPanel() {
             <h3 className="text-xl font-semibold text-slate-900">{item.courseCode} · {item.courseNameTh}</h3>
             <p className="mt-2 text-sm text-slate-600">ตอน {item.sectionCode} · {item.teacherName} · {item.roomName}</p>
             <p className="mt-1 text-sm text-slate-500">{item.semesterLabel} · ลงทะเบียน {item.enrolledCount} คน · active session {item.activeSessionId ?? 'ยังไม่เปิด'}</p>
+            <div className="mt-4 flex gap-2">
+              <button type="button" onClick={() => startEdit(item)} className="rounded-full border border-slate-300 px-3 py-1 text-xs text-slate-700">แก้ไข</button>
+              <button type="button" onClick={() => handleDelete(item.sectionId)} className="rounded-full border border-slate-300 px-3 py-1 text-xs text-slate-700">ลบ</button>
+            </div>
           </Card>
         ))}
       </div>

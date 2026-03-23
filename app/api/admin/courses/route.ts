@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSessionProfile } from '@/lib/auth/session';
-import { addAdminCourse, getAdminCourses, getRoomOptions, getTeacherOptions } from '@/lib/services/app-data';
+import { addAdminCourse, deleteAdminCourse, getAdminCourses, getRoomOptions, getTeacherOptions, updateAdminCourse } from '@/lib/services/app-data';
 import { writeAuditLog } from '@/lib/services/audit-log';
 
 const schema = z.object({
@@ -12,6 +12,10 @@ const schema = z.object({
   teacherProfileId: z.string().min(1),
   roomId: z.string().min(1),
   sessionStatus: z.enum(['draft', 'open', 'closed']).optional()
+});
+
+const updateSchema = schema.extend({
+  sectionId: z.string().min(1)
 });
 
 export async function GET() {
@@ -41,4 +45,54 @@ export async function POST(request: Request) {
   });
 
   return NextResponse.json({ item: session }, { status: 201 });
+}
+
+export async function PATCH(request: Request) {
+  const actor = await getSessionProfile();
+  if (!actor || !['admin', 'super_admin'].includes(actor.role)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const payload = updateSchema.parse(await request.json());
+  const session = updateAdminCourse(payload);
+  if (!session) {
+    return NextResponse.json({ error: 'Course section not found' }, { status: 404 });
+  }
+
+  await writeAuditLog({
+    actorProfileId: actor.profileId,
+    actionType: 'course_section.updated',
+    entityType: 'course_section',
+    entityId: payload.sectionId,
+    metadata: payload
+  });
+
+  return NextResponse.json({ item: session });
+}
+
+export async function DELETE(request: Request) {
+  const actor = await getSessionProfile();
+  if (!actor || !['admin', 'super_admin'].includes(actor.role)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const sectionId = new URL(request.url).searchParams.get('sectionId');
+  if (!sectionId) {
+    return NextResponse.json({ error: 'Missing sectionId' }, { status: 400 });
+  }
+
+  const section = deleteAdminCourse(sectionId);
+  if (!section) {
+    return NextResponse.json({ error: 'Course section not found' }, { status: 404 });
+  }
+
+  await writeAuditLog({
+    actorProfileId: actor.profileId,
+    actionType: 'course_section.deleted',
+    entityType: 'course_section',
+    entityId: sectionId,
+    metadata: {}
+  });
+
+  return NextResponse.json({ item: section });
 }

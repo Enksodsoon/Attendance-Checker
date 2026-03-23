@@ -484,6 +484,109 @@ export function createManualApprovalRequest(input: {
   return clone(queueItem);
 }
 
+
+export function addAdminUser(input: {
+  name: string;
+  email: string;
+  role: AdminUserRecord['role'];
+}) {
+  const state = getState();
+  const user: AdminUserRecord = {
+    profileId: `profile-${Date.now()}`,
+    name: input.name,
+    email: input.email,
+    role: input.role,
+    status: 'active',
+    lastActiveAt: nowIso()
+  };
+
+  state.adminUsers.unshift(user);
+  return clone(user);
+}
+
+export function addAdminCourse(input: {
+  courseCode: string;
+  courseNameTh: string;
+  sectionCode: string;
+  semesterLabel: string;
+  teacherName: string;
+  roomName: string;
+  enrolledCount: number;
+}) {
+  const state = getState();
+  const course: AdminCourseSection = {
+    sectionId: `section-${Date.now()}`,
+    courseCode: input.courseCode,
+    courseNameTh: input.courseNameTh,
+    sectionCode: input.sectionCode,
+    semesterLabel: input.semesterLabel,
+    teacherName: input.teacherName,
+    roomName: input.roomName,
+    enrolledCount: input.enrolledCount
+  };
+
+  state.adminCourses.unshift(course);
+  return clone(course);
+}
+
+export function addAdminRoom(input: {
+  roomId: string;
+  roomName: string;
+  latitude: number;
+  longitude: number;
+  radiusM: number;
+  gpsPolicy: AdminRoomRecord['gpsPolicy'];
+}) {
+  const state = getState();
+  const room: AdminRoomRecord = {
+    roomId: input.roomId,
+    roomName: input.roomName,
+    latitude: input.latitude,
+    longitude: input.longitude,
+    radiusM: input.radiusM,
+    gpsPolicy: input.gpsPolicy
+  };
+
+  state.adminRooms.unshift(room);
+  return clone(room);
+}
+
+export function resolveManualApprovalRequest(input: {
+  attemptId: string;
+  status: 'approved' | 'rejected';
+}) {
+  const state = getState();
+  const queueItem = state.manualApprovalQueue.find((item) => item.attemptId === input.attemptId);
+  if (!queueItem) {
+    return null;
+  }
+
+  queueItem.status = input.status;
+
+  const rosterEntry = state.roster.find((row) => row.studentCode === queueItem.studentCode);
+  if (rosterEntry) {
+    rosterEntry.approvalStatus = input.status;
+    rosterEntry.status = input.status === 'approved' ? 'present' : 'rejected';
+  }
+
+  const historyItem = state.history.find((item) => item.sessionId === queueItem.sessionId);
+  if (historyItem) {
+    historyItem.status = input.status === 'approved' ? 'present' : 'rejected';
+    historyItem.note = `${queueItem.reasonText} · ผลการพิจารณา: ${input.status}`;
+  }
+
+  return clone(queueItem);
+}
+
+export function getSessionOverview() {
+  const monitor = getTeacherMonitorData();
+  return {
+    monitor,
+    manualApprovalQueue: getManualApprovalQueue(),
+    qrToken: getCurrentQrToken()
+  };
+}
+
 export function appendAuditLog(input: {
   actorProfileId?: string;
   actionType: string;

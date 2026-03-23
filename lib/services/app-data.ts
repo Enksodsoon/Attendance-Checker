@@ -87,6 +87,18 @@ const DATA_DIR = join(process.cwd(), 'data');
 const STATE_FILE = join(DATA_DIR, 'app-state.json');
 const DEFAULT_TEACHER_PROFILE_ID = 'profile-teacher-01';
 
+declare global {
+  var __attendanceCheckerState: AppState | undefined;
+}
+
+function cacheState(state: AppState) {
+  globalThis.__attendanceCheckerState = clone(state);
+}
+
+function getCachedState() {
+  return globalThis.__attendanceCheckerState ? clone(globalThis.__attendanceCheckerState) : null;
+}
+
 function clone<T>(value: T): T {
   return structuredClone(value);
 }
@@ -372,18 +384,31 @@ function buildInitialState(): AppState {
 }
 
 function saveState(state: AppState) {
-  mkdirSync(DATA_DIR, { recursive: true });
-  writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), 'utf-8');
+  cacheState(state);
+
+  try {
+    mkdirSync(DATA_DIR, { recursive: true });
+    writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), 'utf-8');
+  } catch (error) {
+    console.warn('[app-data] Falling back to in-memory state store.', error);
+  }
 }
 
 function getState() {
-  if (!existsSync(STATE_FILE)) {
-    const initial = buildInitialState();
-    saveState(initial);
-    return initial;
+  const cached = getCachedState();
+  if (cached) {
+    return cached;
   }
 
-  return JSON.parse(readFileSync(STATE_FILE, 'utf-8')) as AppState;
+  if (existsSync(STATE_FILE)) {
+    const fileState = JSON.parse(readFileSync(STATE_FILE, 'utf-8')) as AppState;
+    cacheState(fileState);
+    return clone(fileState);
+  }
+
+  const initial = buildInitialState();
+  saveState(initial);
+  return clone(initial);
 }
 
 function formatDateLabel(iso: string) {

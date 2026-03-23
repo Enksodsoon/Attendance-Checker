@@ -606,6 +606,7 @@ export function getDemoAccounts(): DemoAccount[] {
       profileId: profile.profileId,
       name: profile.name,
       role: profile.role,
+      status: profile.status,
       email: profile.email,
       description:
         profile.role === 'student'

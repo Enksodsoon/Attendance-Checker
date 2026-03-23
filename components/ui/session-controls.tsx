@@ -19,7 +19,8 @@ export function SessionControls({ currentProfile, accounts }: Readonly<{ current
         body: JSON.stringify({ profileId })
       });
       if (!response.ok) {
-        throw new Error('สลับบัญชีไม่สำเร็จ');
+        const json = (await response.json()) as { error?: string };
+        throw new Error(json.error ?? 'สลับบัญชีไม่สำเร็จ');
       }
       router.refresh();
     } catch (switchError) {
@@ -60,10 +61,12 @@ export function SessionControls({ currentProfile, accounts }: Readonly<{ current
             key={account.profileId}
             type="button"
             onClick={() => switchAccount(account.profileId)}
-            disabled={busyProfileId === account.profileId}
+            disabled={busyProfileId === account.profileId || account.status !== 'active'}
             className="rounded-full border border-slate-300 px-3 py-1.5 text-xs text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
           >
-            {busyProfileId === account.profileId ? 'กำลังสลับ...' : `${account.name} · ${account.role}`}
+            {busyProfileId === account.profileId
+              ? 'กำลังสลับ...'
+              : `${account.name} · ${account.role}${account.status !== 'active' ? ` · ${account.status}` : ''}`}
           </button>
         ))}
       </div>

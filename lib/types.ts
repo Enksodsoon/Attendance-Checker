@@ -285,6 +285,7 @@ export interface DemoAccount {
   profileId: string;
   name: string;
   role: AppRole;
+  status: ProfileStatus;
   email: string;
   description: string;
 }

@@ -17,6 +17,9 @@ export async function POST(request: Request) {
   if (!profile) {
     return NextResponse.json({ error: 'ไม่พบบัญชีทดลองที่เลือก' }, { status: 404 });
   }
+  if (profile.status !== 'active') {
+    return NextResponse.json({ error: 'บัญชีนี้ไม่สามารถเข้าใช้งานได้ในขณะนี้' }, { status: 403 });
+  }
 
   const response = NextResponse.json({ profile });
   response.cookies.set(SESSION_COOKIE, payload.profileId, {

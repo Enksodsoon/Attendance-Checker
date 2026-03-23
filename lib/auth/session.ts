@@ -12,7 +12,12 @@ export async function getSessionProfile() {
     return null;
   }
 
-  return getProfile(profileId);
+  const profile = getProfile(profileId);
+  if (!profile || profile.status !== 'active') {
+    return null;
+  }
+
+  return profile;
 }
 
 export async function requireSessionProfile(roles?: AppRole[]) {

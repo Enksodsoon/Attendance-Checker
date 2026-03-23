@@ -34,7 +34,7 @@ export default function LiffHomePage() {
                   <p className="font-semibold text-slate-900">{session.courseCode} · {session.courseNameTh}</p>
                   <p className="mt-1 text-sm text-slate-500">ตอน {session.sectionCode} · {session.room.roomName}</p>
                 </div>
-                <Link href={liffCheckInRoute} className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white">
+                <Link href={liffCheckInRoute} className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white" style={{ color: "#ffffff" }}>
                   เข้า flow เช็กชื่อ
                 </Link>
               </div>

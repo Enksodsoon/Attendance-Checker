@@ -15,7 +15,7 @@ export default function TeacherSessionListPage() {
           <p className="font-semibold text-slate-900">{demoTeacherMonitor.session.courseCode} · {demoTeacherMonitor.session.courseNameTh}</p>
           <p className="mt-1 text-sm text-slate-500">เปิดเช็กชื่ออยู่ที่ {demoTeacherMonitor.session.room.roomName}</p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <Link href={demoSessionRoute} className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white">
+            <Link href={demoSessionRoute} className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white" style={{ color: "#ffffff" }}>
               เปิด live monitor
             </Link>
             <span className="rounded-full border border-slate-300 px-4 py-2 text-sm text-slate-700">

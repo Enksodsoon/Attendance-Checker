@@ -81,7 +81,7 @@ export function BindForm() {
             placeholder="สมชาย ใจดี"
           />
         </label>
-        <button type="submit" className="inline-flex min-w-44 items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white">
+        <button type="submit" className="inline-flex min-w-44 items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white" style={{ color: "#ffffff" }}>
           {submitting ? 'กำลังผูกบัญชี...' : 'ยืนยันการผูกบัญชี'}
         </button>
       </form>

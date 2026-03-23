@@ -69,7 +69,7 @@ export function LiffBootstrap() {
         </div>
       ) : null}
       <div className="flex flex-wrap gap-3 text-sm font-medium">
-        <Link href={bindRoute} className="rounded-full bg-slate-900 px-4 py-2 text-white">
+        <Link href={bindRoute} className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-white" style={{ color: "#ffffff" }}>
           ผูกบัญชีนักศึกษา
         </Link>
         <Link href={checkInRoute} className="rounded-full border border-slate-300 px-4 py-2 text-slate-700">

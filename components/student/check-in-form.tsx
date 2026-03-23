@@ -188,7 +188,7 @@ export function CheckInForm({ session }: Readonly<{ session: SessionSummary }>) 
       <button
         onClick={handleSubmit}
         disabled={submitting}
-        className="inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white disabled:opacity-60"
+        className="inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white disabled:opacity-60" style={{ color: "#ffffff" }}
       >
         {submitting ? 'กำลังตรวจสอบ...' : 'ส่งข้อมูลเช็กชื่อ'}
       </button>

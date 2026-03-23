@@ -23,7 +23,10 @@ export async function POST(request: Request) {
   }
 
   const payload = parsed.data;
-  const queueItem = createManualApprovalRequest(payload);
+  const queueItem = createManualApprovalRequest({
+    profileId: actor.profileId,
+    ...payload
+  });
 
   if (!queueItem) {
     return NextResponse.json({ error: 'ไม่พบ attendance attempt ที่สามารถส่งคำร้องได้' }, { status: 404 });

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSessionProfile } from '@/lib/auth/session';
-import { resolveManualApprovalRequest } from '@/lib/services/app-data';
+import { canManageManualApprovalRequest, resolveManualApprovalRequest } from '@/lib/services/app-data';
 import { writeAuditLog } from '@/lib/services/audit-log';
 import { readValidatedJson } from '@/lib/utils/api';
 
@@ -16,6 +16,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ att
   }
 
   const { attemptId } = await params;
+  if (actor.role === 'teacher' && !canManageManualApprovalRequest(actor.profileId, attemptId)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   const parsed = await readValidatedJson(request, schema);
   if (!parsed.success) {
     return parsed.response;

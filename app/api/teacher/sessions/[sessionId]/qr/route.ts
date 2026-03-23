@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSessionProfile } from '@/lib/auth/session';
-import { refreshCurrentQrToken } from '@/lib/services/app-data';
+import { isTeacherAssignedToSession, refreshCurrentQrToken } from '@/lib/services/app-data';
 import { writeAuditLog } from '@/lib/services/audit-log';
 
 export async function POST(_: Request, { params }: { params: Promise<{ sessionId: string }> }) {
@@ -10,6 +10,10 @@ export async function POST(_: Request, { params }: { params: Promise<{ sessionId
   }
 
   const { sessionId } = await params;
+  if (actor.role === 'teacher' && !isTeacherAssignedToSession(actor.profileId, sessionId)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   const token = refreshCurrentQrToken(sessionId);
   if (!token) {
     return NextResponse.json({ error: 'Unable to refresh token' }, { status: 400 });

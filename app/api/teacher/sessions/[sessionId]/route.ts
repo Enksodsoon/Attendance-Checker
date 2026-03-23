@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSessionProfile } from '@/lib/auth/session';
-import { updateSessionStatus } from '@/lib/services/app-data';
+import { isTeacherAssignedToSession, updateSessionStatus } from '@/lib/services/app-data';
 import { writeAuditLog } from '@/lib/services/audit-log';
 import { readValidatedJson } from '@/lib/utils/api';
 
@@ -16,6 +16,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ se
   }
 
   const { sessionId } = await params;
+  if (actor.role === 'teacher' && !isTeacherAssignedToSession(actor.profileId, sessionId)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   const parsed = await readValidatedJson(request, schema);
   if (!parsed.success) {
     return parsed.response;

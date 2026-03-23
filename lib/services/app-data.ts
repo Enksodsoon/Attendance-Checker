@@ -678,6 +678,25 @@ export function getTeacherMonitorData(sessionId: string): TeacherMonitorData | n
   });
 }
 
+export function isTeacherAssignedToSession(profileId: string, sessionId: string) {
+  const state = getState();
+  const session = getSessionState(state, sessionId);
+  if (!session) {
+    return false;
+  }
+
+  return state.sections.some((section) => section.sectionId === session.sectionId && section.teacherProfileId === profileId);
+}
+
+export function canManageManualApprovalRequest(profileId: string, attemptId: string) {
+  const attempt = getState().attempts[attemptId];
+  if (!attempt) {
+    return false;
+  }
+
+  return isTeacherAssignedToSession(profileId, attempt.sessionId);
+}
+
 export function getTeacherPrimarySessionRoute(profileId: string) {
   const sessions = getTeacherSessions(profileId);
   return sessions[0] ? `/teacher/sessions/${sessions[0].sessionId}` : '/teacher/sessions';
@@ -778,14 +797,16 @@ export function recordCheckInAttempt(input: {
 }
 
 export function createManualApprovalRequest(input: {
+  profileId: string;
   sessionId: string;
   attendanceAttemptId: string;
   reasonText: string;
 }) {
   const state = getState();
   const attempt = state.attempts[input.attendanceAttemptId];
+  const student = getStudentByProfileId(state, input.profileId);
 
-  if (!attempt || attempt.sessionId !== input.sessionId) {
+  if (!attempt || !student || attempt.sessionId !== input.sessionId || attempt.studentId !== student.studentId) {
     return null;
   }
 

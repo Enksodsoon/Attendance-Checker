@@ -4,6 +4,7 @@ import { getEnv } from '@/lib/config/env';
 import { getCurrentQrToken, getExistingRecordStatus, getSessionById, isStudentEnrolled, recordCheckInAttempt } from '@/lib/services/app-data';
 import { buildAttendanceAttemptLog, validateAttendanceCheckIn } from '@/lib/services/attendance-validator';
 import { writeAuditLog } from '@/lib/services/audit-log';
+import { readValidatedJson } from '@/lib/utils/api';
 import { attendanceCheckInSchema } from '@/lib/validators/attendance';
 
 export async function POST(request: Request) {
@@ -12,8 +13,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const json = await request.json();
-  const payload = attendanceCheckInSchema.parse(json);
+  const parsed = await readValidatedJson(request, attendanceCheckInSchema);
+  if (!parsed.success) {
+    return parsed.response;
+  }
+
+  const payload = parsed.data;
   const env = getEnv();
   const session = getSessionById(payload.sessionId);
 

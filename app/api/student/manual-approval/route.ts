@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getSessionProfile } from '@/lib/auth/session';
 import { createManualApprovalRequest } from '@/lib/services/app-data';
 import { writeAuditLog } from '@/lib/services/audit-log';
+import { readValidatedJson } from '@/lib/utils/api';
 
 const schema = z.object({
   sessionId: z.string().min(1),
@@ -16,7 +17,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const payload = schema.parse(await request.json());
+  const parsed = await readValidatedJson(request, schema);
+  if (!parsed.success) {
+    return parsed.response;
+  }
+
+  const payload = parsed.data;
   const queueItem = createManualApprovalRequest(payload);
 
   if (!queueItem) {

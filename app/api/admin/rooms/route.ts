@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getSessionProfile } from '@/lib/auth/session';
 import { addAdminRoom, deleteAdminRoom, getAdminRooms, updateAdminRoom } from '@/lib/services/app-data';
 import { writeAuditLog } from '@/lib/services/audit-log';
+import { readValidatedJson } from '@/lib/utils/api';
 
 const schema = z.object({
   roomId: z.string().min(2).max(40),
@@ -32,7 +33,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const payload = schema.parse(await request.json());
+  const parsed = await readValidatedJson(request, schema);
+  if (!parsed.success) {
+    return parsed.response;
+  }
+
+  const payload = parsed.data;
   const room = addAdminRoom(payload);
 
   await writeAuditLog({
@@ -52,7 +58,12 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const payload = updateSchema.parse(await request.json());
+  const parsed = await readValidatedJson(request, updateSchema);
+  if (!parsed.success) {
+    return parsed.response;
+  }
+
+  const payload = parsed.data;
   const room = updateAdminRoom(payload);
   if (!room) {
     return NextResponse.json({ error: 'Room not found' }, { status: 404 });

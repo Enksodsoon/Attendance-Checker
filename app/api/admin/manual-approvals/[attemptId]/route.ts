@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getSessionProfile } from '@/lib/auth/session';
 import { resolveManualApprovalRequest } from '@/lib/services/app-data';
 import { writeAuditLog } from '@/lib/services/audit-log';
+import { readValidatedJson } from '@/lib/utils/api';
 
 const schema = z.object({
   status: z.enum(['approved', 'rejected'])
@@ -15,7 +16,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ att
   }
 
   const { attemptId } = await params;
-  const payload = schema.parse(await request.json());
+  const parsed = await readValidatedJson(request, schema);
+  if (!parsed.success) {
+    return parsed.response;
+  }
+
+  const payload = parsed.data;
   const item = resolveManualApprovalRequest({ attemptId, status: payload.status });
 
   if (!item) {

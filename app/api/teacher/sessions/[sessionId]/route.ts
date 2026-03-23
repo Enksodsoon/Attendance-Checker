@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getSessionProfile } from '@/lib/auth/session';
 import { updateSessionStatus } from '@/lib/services/app-data';
 import { writeAuditLog } from '@/lib/services/audit-log';
+import { readValidatedJson } from '@/lib/utils/api';
 
 const schema = z.object({
   status: z.enum(['open', 'closed'])
@@ -15,7 +16,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ se
   }
 
   const { sessionId } = await params;
-  const payload = schema.parse(await request.json());
+  const parsed = await readValidatedJson(request, schema);
+  if (!parsed.success) {
+    return parsed.response;
+  }
+
+  const payload = parsed.data;
   const session = updateSessionStatus(sessionId, payload.status);
   if (!session) {
     return NextResponse.json({ error: 'Session not found' }, { status: 404 });

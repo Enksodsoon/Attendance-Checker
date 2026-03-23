@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node scripts/typecheck.mjs",
     "check": "npm run lint && npm run typecheck",
     "seed": "node scripts/seed-demo.mjs"
   },

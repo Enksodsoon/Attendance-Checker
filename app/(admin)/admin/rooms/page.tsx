@@ -1,9 +1,11 @@
 import { AdminSectionShell } from '@/components/admin/admin-section-shell';
 import { RoomManagementPanel } from '@/components/admin/room-management-panel';
+import { requireSessionProfile } from '@/lib/auth/session';
 
 export const dynamic = 'force-dynamic';
 
-export default function AdminRoomsPage() {
+export default async function AdminRoomsPage() {
+  await requireSessionProfile(['admin', 'super_admin']);
   return (
     <AdminSectionShell
       eyebrow="Admin / room-geofence management"

@@ -1,17 +1,16 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSessionProfile } from '@/lib/auth/session';
-import { addAdminCourse, getAdminCourses, getRoomOptions, getTeacherOptions } from '@/lib/services/app-data';
+import { addAdminStudent, getAdminStudents } from '@/lib/services/app-data';
 import { writeAuditLog } from '@/lib/services/audit-log';
 
 const schema = z.object({
-  courseCode: z.string().min(2).max(20),
-  courseNameTh: z.string().min(2).max(120),
-  sectionCode: z.string().min(1).max(10),
-  semesterLabel: z.string().min(2).max(60),
-  teacherProfileId: z.string().min(1),
-  roomId: z.string().min(1),
-  sessionStatus: z.enum(['draft', 'open', 'closed']).optional()
+  studentCode: z.string().min(6).max(20),
+  fullNameTh: z.string().min(2).max(120),
+  facultyName: z.string().min(2).max(120),
+  departmentName: z.string().min(2).max(120),
+  yearLevel: z.coerce.number().int().min(1).max(8),
+  email: z.string().email().optional().or(z.literal(''))
 });
 
 export async function GET() {
@@ -20,7 +19,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  return NextResponse.json({ items: getAdminCourses(), teacherOptions: getTeacherOptions(), roomOptions: getRoomOptions() });
+  return NextResponse.json({ items: getAdminStudents() });
 }
 
 export async function POST(request: Request) {
@@ -30,15 +29,15 @@ export async function POST(request: Request) {
   }
 
   const payload = schema.parse(await request.json());
-  const session = addAdminCourse(payload);
+  const student = addAdminStudent(payload);
 
   await writeAuditLog({
     actorProfileId: actor.profileId,
-    actionType: 'course_section.created',
-    entityType: 'course_section',
-    entityId: session.sessionId,
+    actionType: 'student.created',
+    entityType: 'student',
+    entityId: student.studentId,
     metadata: payload
   });
 
-  return NextResponse.json({ item: session }, { status: 201 });
+  return NextResponse.json({ item: student }, { status: 201 });
 }

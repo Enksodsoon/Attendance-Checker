@@ -1,13 +1,12 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSessionProfile } from '@/lib/auth/session';
-import { addAdminUser, deleteAdminUser, getAdminUsers } from '@/lib/services/app-data';
+import { createEnrollment, deleteEnrollment, getAdminCourses, getAdminStudents, getEnrollments, getSectionOptions } from '@/lib/services/app-data';
 import { writeAuditLog } from '@/lib/services/audit-log';
 
 const schema = z.object({
-  name: z.string().min(2).max(120),
-  email: z.string().email(),
-  role: z.enum(['student', 'teacher', 'admin', 'super_admin'])
+  studentId: z.string().min(1),
+  sectionId: z.string().min(1)
 });
 
 export async function GET() {
@@ -16,7 +15,12 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  return NextResponse.json({ items: getAdminUsers() });
+  return NextResponse.json({
+    items: getEnrollments(),
+    students: getAdminStudents(),
+    sections: getSectionOptions(),
+    courses: getAdminCourses()
+  });
 }
 
 export async function POST(request: Request) {
@@ -26,17 +30,17 @@ export async function POST(request: Request) {
   }
 
   const payload = schema.parse(await request.json());
-  const user = addAdminUser(payload);
+  const enrollment = createEnrollment(payload);
 
   await writeAuditLog({
     actorProfileId: actor.profileId,
-    actionType: 'admin_user.created',
-    entityType: 'profile',
-    entityId: user.profileId,
+    actionType: 'enrollment.created',
+    entityType: 'enrollment',
+    entityId: enrollment.enrollmentId,
     metadata: payload
   });
 
-  return NextResponse.json({ item: user }, { status: 201 });
+  return NextResponse.json({ item: enrollment }, { status: 201 });
 }
 
 export async function DELETE(request: Request) {
@@ -45,21 +49,21 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const profileId = new URL(request.url).searchParams.get('profileId');
-  if (!profileId) {
-    return NextResponse.json({ error: 'Missing profileId' }, { status: 400 });
+  const enrollmentId = new URL(request.url).searchParams.get('enrollmentId');
+  if (!enrollmentId) {
+    return NextResponse.json({ error: 'Missing enrollmentId' }, { status: 400 });
   }
 
-  const removed = deleteAdminUser(profileId);
+  const removed = deleteEnrollment(enrollmentId);
   if (!removed) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    return NextResponse.json({ error: 'Enrollment not found' }, { status: 404 });
   }
 
   await writeAuditLog({
     actorProfileId: actor.profileId,
-    actionType: 'admin_user.deleted',
-    entityType: 'profile',
-    entityId: profileId,
+    actionType: 'enrollment.deleted',
+    entityType: 'enrollment',
+    entityId: enrollmentId,
     metadata: {}
   });
 

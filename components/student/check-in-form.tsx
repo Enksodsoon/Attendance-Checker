@@ -2,7 +2,8 @@
 
 import type { ChangeEvent } from 'react';
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import type { AttendanceDecision, CheckInPayload, SessionSummary } from '@/lib/types';
 
@@ -16,6 +17,16 @@ type CheckInResponse = {
   decision: AttendanceDecision;
   attemptId: string;
 };
+
+type BarcodeDetectorLike = {
+  detect: (source: ImageBitmapSource) => Promise<Array<{ rawValue?: string }>>;
+};
+
+declare global {
+  interface Window {
+    BarcodeDetector?: new (options?: { formats?: string[] }) => BarcodeDetectorLike;
+  }
+}
 
 const decisionMessageMap: Record<AttendanceDecision['reasonCode'], string> = {
   ok_present: 'เช็กชื่อสำเร็จและนับเป็นมาเรียน',
@@ -32,11 +43,14 @@ const decisionMessageMap: Record<AttendanceDecision['reasonCode'], string> = {
 
 export function CheckInForm({
   session,
+  sessions,
   initialQrToken
 }: Readonly<{
   session: SessionSummary;
+  sessions: SessionSummary[];
   initialQrToken: string;
 }>) {
+  const router = useRouter();
   const [geoState, setGeoState] = useState<GeoState>({ status: 'idle' });
   const [qrToken, setQrToken] = useState(initialQrToken);
   const [manualReason, setManualReason] = useState('GPS ในอาคารไม่เสถียร แต่เช็กชื่อจากห้องเรียนจริง');
@@ -46,6 +60,21 @@ export function CheckInForm({
   const [manualSubmitting, setManualSubmitting] = useState(false);
   const [manualStatus, setManualStatus] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [scannerStatus, setScannerStatus] = useState<'idle' | 'starting' | 'active' | 'unsupported' | 'error'>('idle');
+  const [scannerMessage, setScannerMessage] = useState<string>('เปิดกล้องเพื่อสแกน QR จริง');
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const scanTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    setQrToken(initialQrToken);
+  }, [initialQrToken, session.sessionId]);
+
+  useEffect(() => {
+    return () => {
+      stopScanner();
+    };
+  }, []);
 
   const helperText = useMemo(() => {
     if (geoState.status === 'ready') {
@@ -62,6 +91,65 @@ export function CheckInForm({
 
     return 'กรุณาอนุญาต GPS ก่อนสแกน QR';
   }, [geoState]);
+
+  function stopScanner() {
+    if (scanTimerRef.current) {
+      window.clearInterval(scanTimerRef.current);
+      scanTimerRef.current = null;
+    }
+
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setScannerStatus('idle');
+  }
+
+  async function startScanner() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setScannerStatus('unsupported');
+      setScannerMessage('อุปกรณ์นี้ไม่รองรับการเปิดกล้อง');
+      return;
+    }
+    if (!window.BarcodeDetector) {
+      setScannerStatus('unsupported');
+      setScannerMessage('เบราว์เซอร์นี้ยังไม่รองรับ BarcodeDetector ให้ใช้ manual token แทน');
+      return;
+    }
+
+    try {
+      setScannerStatus('starting');
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+      setScannerStatus('active');
+      setScannerMessage('กำลังสแกน QR จากกล้อง...');
+      scanTimerRef.current = window.setInterval(async () => {
+        if (!videoRef.current || videoRef.current.readyState < 2) {
+          return;
+        }
+
+        const barcodes = await detector.detect(videoRef.current);
+        const rawValue = barcodes[0]?.rawValue;
+        if (rawValue) {
+          setQrToken(rawValue);
+          setScannerMessage('พบ QR แล้ว และกรอก token ให้เรียบร้อย');
+          stopScanner();
+        }
+      }, 700);
+    } catch (scanError) {
+      console.error(scanError);
+      setScannerStatus('error');
+      setScannerMessage(scanError instanceof Error ? scanError.message : 'เปิดกล้องไม่สำเร็จ');
+      stopScanner();
+    }
+  }
 
   function requestLocation() {
     if (!navigator.geolocation) {
@@ -118,6 +206,7 @@ export function CheckInForm({
       if (json.decision.verificationResult === 'accepted') {
         setManualStatus('เช็กชื่อสำเร็จแล้ว รายการนี้จะปรากฏในหน้า history และ live monitor ทันที');
       }
+      router.refresh();
     } catch (submitError) {
       setErrorMessage(submitError instanceof Error ? submitError.message : 'ส่งข้อมูลเช็กชื่อไม่สำเร็จ');
     } finally {
@@ -150,7 +239,8 @@ export function CheckInForm({
         throw new Error(payload.error ?? 'ส่งคำร้องไม่สำเร็จ');
       }
 
-      setManualStatus('ส่งคำร้อง manual approval สำเร็จแล้ว รายการนี้จะไปอยู่ในหน้า admin/teacher queue');
+      setManualStatus('ส่งคำร้อง manual approval สำเร็จแล้ว รายการนี้จะไปอยู่ในหน้า teacher/admin queue');
+      router.refresh();
     } catch (manualError) {
       setManualStatus(manualError instanceof Error ? manualError.message : 'ส่งคำร้องไม่สำเร็จ');
     } finally {
@@ -169,12 +259,46 @@ export function CheckInForm({
         </p>
       </div>
 
+      <label className="block text-sm font-medium text-slate-700">
+        เลือกคาบเรียนที่ต้องการเช็กชื่อ
+        <select
+          value={session.sessionId}
+          onChange={(event) => router.push(`/liff/check-in?sessionId=${event.target.value}`)}
+          className="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3"
+        >
+          {sessions.map((item) => (
+            <option key={item.sessionId} value={item.sessionId}>
+              {item.courseCode} / ตอน {item.sectionCode} · {item.status}
+            </option>
+          ))}
+        </select>
+      </label>
+
       <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-700">
         <p className="font-medium">Permission screen</p>
         <p className="mt-1">{helperText}</p>
         <button onClick={requestLocation} className="mt-3 inline-flex min-w-44 items-center justify-center rounded-full bg-teal-600 px-4 py-2 font-medium text-white">
           ขอสิทธิ์ตำแหน่ง
         </button>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-slate-900">สแกน QR ด้วยกล้อง</p>
+            <p className="mt-1 text-sm text-slate-600">ถ้าเบราว์เซอร์รองรับ BarcodeDetector ระบบจะอ่าน token ให้โดยอัตโนมัติ</p>
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={startScanner} className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white">
+              เปิดกล้องสแกน
+            </button>
+            <button type="button" onClick={stopScanner} className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700">
+              ปิดกล้อง
+            </button>
+          </div>
+        </div>
+        <p className="mt-2 text-sm text-slate-500">สถานะสแกนเนอร์: {scannerStatus} · {scannerMessage}</p>
+        <video ref={videoRef} className="mt-3 aspect-video w-full rounded-2xl bg-slate-950 object-cover" muted playsInline />
       </div>
 
       <label className="block text-sm font-medium text-slate-700">
@@ -201,7 +325,6 @@ export function CheckInForm({
         onClick={handleSubmit}
         disabled={submitting}
         className="inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white disabled:opacity-60"
-        style={{ color: '#ffffff' }}
       >
         {submitting ? 'กำลังตรวจสอบ...' : 'ส่งข้อมูลเช็กชื่อ'}
       </button>

@@ -1,11 +1,18 @@
 import { NextResponse } from 'next/server';
-import { getActiveSessionId, getTeacherMonitorData } from '@/lib/services/app-data';
+import { getSessionProfile } from '@/lib/auth/session';
+import { getTeacherMonitorData } from '@/lib/services/app-data';
 
 export async function GET(_: Request, { params }: { params: Promise<{ sessionId: string }> }) {
+  const actor = await getSessionProfile();
+  if (!actor || !['teacher', 'admin', 'super_admin'].includes(actor.role)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { sessionId } = await params;
-  if (sessionId !== getActiveSessionId()) {
+  const monitor = getTeacherMonitorData(sessionId);
+  if (!monitor) {
     return NextResponse.json({ error: 'Session not found' }, { status: 404 });
   }
 
-  return NextResponse.json(getTeacherMonitorData());
+  return NextResponse.json(monitor);
 }

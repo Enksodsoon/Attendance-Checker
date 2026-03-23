@@ -1,6 +1,7 @@
 import type { Route } from 'next';
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
+import { requireSessionProfile } from '@/lib/auth/session';
 
 const items: ReadonlyArray<{
   title: string;
@@ -10,12 +11,22 @@ const items: ReadonlyArray<{
   {
     title: 'user management',
     href: '/admin/users' as Route,
-    description: 'ดูสถานะบัญชี ผู้ใช้ที่ active และบทบาทของแต่ละโปรไฟล์'
+    description: 'ดูสถานะบัญชี active, บทบาท, และลบบัญชีที่ไม่ต้องการใช้ต่อ'
+  },
+  {
+    title: 'student registry',
+    href: '/admin/students' as Route,
+    description: 'เพิ่มนักศึกษาใหม่ พร้อมข้อมูลคณะ/ภาควิชา/ชั้นปี และดูการ bind LINE ปัจจุบัน'
   },
   {
     title: 'course/section management',
     href: '/admin/courses' as Route,
-    description: 'ตรวจสอบรายวิชา ตอนเรียน อาจารย์ประจำวิชา และจำนวนนักศึกษาที่ลงทะเบียน'
+    description: 'สร้างรายวิชา ตอนเรียน กำหนดผู้สอน ห้อง และสถานะ session เริ่มต้น'
+  },
+  {
+    title: 'enrollment management',
+    href: '/admin/enrollments' as Route,
+    description: 'ผูกนักศึกษากับตอนเรียน เพื่อให้ student/teacher flow ใช้ข้อมูลจริงเดียวกัน'
   },
   {
     title: 'room/geofence management',
@@ -30,23 +41,27 @@ const items: ReadonlyArray<{
   {
     title: 'audit log viewer',
     href: '/admin/audit-logs' as Route,
-    description: 'ดูบันทึกการกระทำล่าสุดผ่าน API ของฝั่งผู้ดูแลระบบ'
+    description: 'ดู audit log พร้อม filter ตาม action/entity/actor แบบอ่านง่ายขึ้น'
   },
   {
     title: 'export center',
     href: '/admin/exports' as Route,
-    description: 'ดาวน์โหลด CSV/JSON จากระบบปัจจุบันและเปิด payload ที่หน้าอื่นใช้จริง'
+    description: 'ดาวน์โหลด CSV/JSON และเปิด payload ที่หน้าอื่นใช้จริง'
   }
 ];
 
-export default function AdminHomePage() {
+export const dynamic = 'force-dynamic';
+
+export default async function AdminHomePage() {
+  await requireSessionProfile(['admin', 'super_admin']);
+
   return (
     <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-6 px-4 py-6 md:px-6">
       <Card>
         <p className="text-sm text-slate-500">Admin home</p>
         <h1 className="mt-2 text-3xl font-bold text-slate-900">แผงควบคุมผู้ดูแลระบบ</h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-          หน้านี้ถูกอัปเกรดจาก card แบบ static ให้เป็น admin workspace ที่กดเข้าแต่ละส่วนได้จริง พร้อมหน้าจอรายละเอียดสำหรับตรวจข้อมูลหลักของ MVP.
+          เวอร์ชันนี้ทำให้ admin workspace ใช้งานแบบปฏิบัติการได้มากขึ้น: จัดการบัญชี นักศึกษา การลงทะเบียน ห้อง รายวิชา session และ audit จากข้อมูลกลางเดียวกัน.
         </p>
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           {items.map((item) => (

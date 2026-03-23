@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getStudentDashboard } from '@/lib/services/app-data';
+import { getSessionProfile } from '@/lib/auth/session';
+import { bindStudentIdentity } from '@/lib/services/app-data';
 import { writeAuditLog } from '@/lib/services/audit-log';
 
 const schema = z.object({
@@ -9,25 +10,33 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
-  const payload = schema.parse(await request.json());
-  const dashboard = getStudentDashboard();
+  const actor = await getSessionProfile();
+  if (!actor || actor.role !== 'student') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
-  if (payload.studentCode !== dashboard.student.studentCode) {
-    return NextResponse.json({ error: 'ไม่พบรหัสนักศึกษาในข้อมูลระบบปัจจุบัน' }, { status: 404 });
+  const payload = schema.parse(await request.json());
+  const student = bindStudentIdentity(actor.profileId, {
+    ...payload,
+    lineUserId: actor.lineUserId
+  });
+
+  if (!student) {
+    return NextResponse.json({ error: 'ไม่พบรหัสนักศึกษาที่ตรงกับบัญชีปัจจุบัน' }, { status: 404 });
   }
 
   await writeAuditLog({
-    actorProfileId: dashboard.student.profileId,
+    actorProfileId: actor.profileId,
     actionType: 'line_account.bound',
     entityType: 'profile',
-    entityId: dashboard.student.profileId,
+    entityId: actor.profileId,
     metadata: payload
   });
 
   return NextResponse.json({
     status: 'success',
-    profileId: dashboard.student.profileId,
-    lineUserId: dashboard.student.lineUserId,
+    profileId: actor.profileId,
+    lineUserId: student.lineUserId,
     studentCode: payload.studentCode,
     fullNameTh: payload.fullNameTh
   });

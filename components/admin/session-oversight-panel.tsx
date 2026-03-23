@@ -1,31 +1,42 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { StatCard } from '@/components/ui/stat-card';
-import type { TeacherMonitorData, ManualApprovalQueueItem } from '@/lib/types';
+import type { TeacherMonitorData, ManualApprovalQueueItem, AdminCourseSection } from '@/lib/types';
 
 interface SessionOverviewResponse {
-  monitor: TeacherMonitorData;
+  monitor: TeacherMonitorData | null;
   manualApprovalQueue: ManualApprovalQueueItem[];
-  qrToken: string;
+  qrToken: string | null;
 }
 
 export function SessionOversightPanel() {
+  const searchParams = useSearchParams();
   const [data, setData] = useState<SessionOverviewResponse | null>(null);
+  const [courseItems, setCourseItems] = useState<AdminCourseSection[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busyAttemptId, setBusyAttemptId] = useState<string | null>(null);
+  const sessionId = searchParams.get('sessionId') ?? undefined;
 
-  async function load() {
-    const response = await fetch('/api/admin/sessions/overview', { cache: 'no-store' });
-    const json = (await response.json()) as SessionOverviewResponse;
-    setData(json);
-  }
+  const load = useCallback(async () => {
+    const [overviewResponse, coursesResponse] = await Promise.all([
+      fetch(`/api/admin/sessions/overview${sessionId ? `?sessionId=${sessionId}` : ''}`, { cache: 'no-store' }),
+      fetch('/api/admin/courses', { cache: 'no-store' })
+    ]);
+    const overview = (await overviewResponse.json()) as SessionOverviewResponse & { error?: string };
+    const courses = (await coursesResponse.json()) as { items: AdminCourseSection[]; error?: string };
+    if (!overviewResponse.ok) throw new Error(overview.error ?? 'โหลด session overview ไม่สำเร็จ');
+    if (!coursesResponse.ok) throw new Error(courses.error ?? 'โหลดข้อมูล session options ไม่สำเร็จ');
+    setData(overview);
+    setCourseItems(courses.items);
+  }, [sessionId]);
 
   useEffect(() => {
     load().catch((loadError) => setError(loadError instanceof Error ? loadError.message : 'โหลด session overview ไม่สำเร็จ'));
-  }, []);
+  }, [load]);
 
   async function handleResolution(attemptId: string, status: 'approved' | 'rejected') {
     setBusyAttemptId(attemptId);
@@ -36,7 +47,8 @@ export function SessionOversightPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status })
       });
-      if (!response.ok) throw new Error('อัปเดตคำขอไม่สำเร็จ');
+      const json = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(json.error ?? 'อัปเดตคำขอไม่สำเร็จ');
       await load();
     } catch (resolutionError) {
       setError(resolutionError instanceof Error ? resolutionError.message : 'อัปเดตคำขอไม่สำเร็จ');
@@ -46,17 +58,24 @@ export function SessionOversightPanel() {
   }
 
   async function refreshQr() {
-    if (!data) return;
+    if (!data?.monitor) return;
     setError(null);
     try {
-      await fetch(`/api/teacher/sessions/${data.monitor.session.sessionId}/qr`, { method: 'POST' });
+      const response = await fetch(`/api/teacher/sessions/${data.monitor.session.sessionId}/qr`, { method: 'POST' });
+      const json = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(json.error ?? 'รีเฟรช QR ไม่สำเร็จ');
       await load();
     } catch (refreshError) {
       setError(refreshError instanceof Error ? refreshError.message : 'รีเฟรช QR ไม่สำเร็จ');
     }
   }
 
-  if (!data) {
+  const sessionOptions = useMemo(
+    () => courseItems.filter((item) => item.activeSessionId).map((item) => ({ sessionId: item.activeSessionId as string, label: `${item.courseCode} / ตอน ${item.sectionCode}` })),
+    [courseItems]
+  );
+
+  if (!data?.monitor) {
     return <p className="text-sm text-slate-500">กำลังโหลด session overview...</p>;
   }
 
@@ -75,8 +94,13 @@ export function SessionOversightPanel() {
             <p className="text-sm text-slate-500">Active QR token</p>
             <h2 className="mt-2 text-2xl font-semibold text-slate-900">{data.monitor.session.courseCode} · {data.monitor.session.courseNameTh}</h2>
             <p className="mt-2 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">QR token ล่าสุด: {data.qrToken}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {sessionOptions.map((item) => (
+                <a key={item.sessionId} href={`/admin/sessions?sessionId=${item.sessionId}`} className="rounded-full border border-slate-300 px-3 py-1 text-xs text-slate-700">{item.label}</a>
+              ))}
+            </div>
           </div>
-          <button type="button" onClick={refreshQr} className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white" style={{ color: '#ffffff' }}>
+          <button type="button" onClick={refreshQr} className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white">
             รีเฟรช QR token
           </button>
         </div>

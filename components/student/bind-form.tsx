@@ -3,7 +3,9 @@
 import type { ChangeEvent, FormEvent } from 'react';
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
+import type { StudentIdentity } from '@/lib/types';
 
 type BindState = {
   studentCode: string;
@@ -18,8 +20,9 @@ type BindResponse = {
   fullNameTh: string;
 };
 
-export function BindForm() {
-  const [form, setForm] = useState<BindState>({ studentCode: '6512345678', fullNameTh: 'สมชาย ใจดี' });
+export function BindForm({ student }: Readonly<{ student: StudentIdentity }>) {
+  const router = useRouter();
+  const [form, setForm] = useState<BindState>({ studentCode: student.studentCode, fullNameTh: student.fullNameTh });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<BindResponse | null>(null);
@@ -40,13 +43,13 @@ export function BindForm() {
         body: JSON.stringify(form)
       });
 
+      const payload = (await response.json()) as BindResponse & { error?: string };
       if (!response.ok) {
-        const payload = (await response.json()) as { error?: string };
         throw new Error(payload.error ?? 'ผูกบัญชีไม่สำเร็จ');
       }
 
-      const payload = (await response.json()) as BindResponse;
       setResult(payload);
+      router.refresh();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'ผูกบัญชีไม่สำเร็จ');
     } finally {
@@ -59,7 +62,7 @@ export function BindForm() {
       <p className="text-sm text-slate-500">First-time binding</p>
       <h1 className="mt-2 text-3xl font-bold text-slate-900">ผูก LINE กับรหัสนักศึกษา</h1>
       <p className="mt-3 text-sm leading-6 text-slate-600">
-        หน้านี้ทำงานแบบ MVP แล้ว: กรอกข้อมูล, ส่งไปที่ API, และแสดงผลลัพธ์การ bind เพื่อให้ผู้ใช้รู้ว่าปุ่มทำอะไรและสำเร็จหรือไม่.
+        เวอร์ชันนี้ผูกข้อมูลกับบัญชีนักศึกษาที่ล็อกอินอยู่จริงในระบบเดโม เพื่อให้หน้า LIFF ดึงข้อมูลตามการลงทะเบียนของคนนั้นได้ทันที.
       </p>
 
       <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
@@ -81,7 +84,7 @@ export function BindForm() {
             placeholder="สมชาย ใจดี"
           />
         </label>
-        <button type="submit" className="inline-flex min-w-44 items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white" style={{ color: "#ffffff" }}>
+        <button type="submit" className="inline-flex min-w-44 items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white">
           {submitting ? 'กำลังผูกบัญชี...' : 'ยืนยันการผูกบัญชี'}
         </button>
       </form>

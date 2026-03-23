@@ -15,7 +15,8 @@ export function UserManagementPanel() {
   async function load() {
     setLoading(true);
     const response = await fetch('/api/admin/users', { cache: 'no-store' });
-    const json = (await response.json()) as { items: AdminUserRecord[] };
+    const json = (await response.json()) as { items: AdminUserRecord[]; error?: string };
+    if (!response.ok) throw new Error(json.error ?? 'โหลดข้อมูลผู้ใช้ไม่สำเร็จ');
     setItems(json.items);
     setLoading(false);
   }
@@ -49,6 +50,18 @@ export function UserManagementPanel() {
     }
   }
 
+  async function handleDelete(profileId: string) {
+    setError(null);
+    try {
+      const response = await fetch(`/api/admin/users?profileId=${profileId}`, { method: 'DELETE' });
+      const json = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(json.error ?? 'ลบผู้ใช้ไม่สำเร็จ');
+      await load();
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'ลบผู้ใช้ไม่สำเร็จ');
+    }
+  }
+
   const roleTone = { student: 'slate', teacher: 'teal', admin: 'amber', super_admin: 'red' } as const;
 
   return (
@@ -68,7 +81,7 @@ export function UserManagementPanel() {
             <option value="super_admin">super_admin</option>
           </select>
         </div>
-        <button type="button" onClick={handleSubmit} disabled={submitting} className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white" style={{ color: '#ffffff' }}>
+        <button type="button" onClick={handleSubmit} disabled={submitting} className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white">
           {submitting ? 'กำลังบันทึก...' : 'เพิ่มผู้ใช้'}
         </button>
         {error ? <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p> : null}
@@ -81,7 +94,7 @@ export function UserManagementPanel() {
         <div className="mt-4 overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead>
-              <tr className="text-left text-slate-500"><th className="py-3 pr-4">ชื่อ</th><th className="py-3 pr-4">อีเมล</th><th className="py-3 pr-4">บทบาท</th><th className="py-3 pr-4">สถานะ</th></tr>
+              <tr className="text-left text-slate-500"><th className="py-3 pr-4">ชื่อ</th><th className="py-3 pr-4">อีเมล</th><th className="py-3 pr-4">บทบาท</th><th className="py-3 pr-4">รหัสนักศึกษา</th><th className="py-3 pr-4">สถานะ</th><th className="py-3 pr-4">จัดการ</th></tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {items.map((item) => (
@@ -89,7 +102,11 @@ export function UserManagementPanel() {
                   <td className="py-3 pr-4 text-slate-900">{item.name}</td>
                   <td className="py-3 pr-4 text-slate-700">{item.email}</td>
                   <td className="py-3 pr-4"><Badge tone={roleTone[item.role]}>{item.role}</Badge></td>
+                  <td className="py-3 pr-4 text-slate-700">{item.linkedStudentCode ?? '-'}</td>
                   <td className="py-3 pr-4 text-slate-700">{item.status}</td>
+                  <td className="py-3 pr-4 text-slate-700">
+                    <button type="button" onClick={() => handleDelete(item.profileId)} className="rounded-full border border-slate-300 px-3 py-1 text-xs">ลบ</button>
+                  </td>
                 </tr>
               ))}
             </tbody>

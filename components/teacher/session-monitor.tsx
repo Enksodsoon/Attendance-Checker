@@ -1,4 +1,8 @@
+'use client';
+
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { StatCard } from '@/components/ui/stat-card';
@@ -14,6 +18,42 @@ const toneMap = {
 } as const;
 
 export function SessionMonitor({ data, qrDataUrl }: Readonly<{ data: TeacherMonitorData; qrDataUrl: string }>) {
+  const router = useRouter();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function setStatus(status: 'open' | 'closed') {
+    setBusy(status);
+    setError(null);
+    try {
+      const response = await fetch(`/api/teacher/sessions/${data.session.sessionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      if (!response.ok) throw new Error('อัปเดตสถานะคาบเรียนไม่สำเร็จ');
+      router.refresh();
+    } catch (statusError) {
+      setError(statusError instanceof Error ? statusError.message : 'อัปเดตสถานะคาบเรียนไม่สำเร็จ');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function refreshQr() {
+    setBusy('qr');
+    setError(null);
+    try {
+      const response = await fetch(`/api/teacher/sessions/${data.session.sessionId}/qr`, { method: 'POST' });
+      if (!response.ok) throw new Error('รีเฟรช QR ไม่สำเร็จ');
+      router.refresh();
+    } catch (refreshError) {
+      setError(refreshError instanceof Error ? refreshError.message : 'รีเฟรช QR ไม่สำเร็จ');
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <Card className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
@@ -26,14 +66,26 @@ export function SessionMonitor({ data, qrDataUrl }: Readonly<{ data: TeacherMoni
             {data.session.courseNameTh} · {data.session.teacherName} · {data.session.room.roomName}
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Badge tone="teal">สถานะ {data.session.status}</Badge>
+            <Badge tone={data.session.status === 'open' ? 'teal' : 'red'}>สถานะ {data.session.status}</Badge>
             <Badge tone="slate">mode {data.session.attendanceMode}</Badge>
             <Badge tone="slate">verify {data.session.verificationMode}</Badge>
           </div>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button type="button" onClick={() => setStatus('open')} disabled={busy !== null} className="rounded-full bg-emerald-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
+              เปิดคาบเรียน
+            </button>
+            <button type="button" onClick={() => setStatus('closed')} disabled={busy !== null} className="rounded-full bg-rose-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
+              ปิดคาบเรียน
+            </button>
+            <button type="button" onClick={refreshQr} disabled={busy !== null} className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 disabled:opacity-60">
+              รีเฟรช QR
+            </button>
+          </div>
+          {error ? <p className="mt-3 text-sm text-rose-600">{error}</p> : null}
         </div>
         <div className="rounded-3xl bg-slate-50 p-4 text-center">
           <Image src={qrDataUrl} alt="session qr" width={220} height={220} className="mx-auto rounded-2xl" unoptimized />
-          <p className="mt-3 text-sm text-slate-500">QR payload หมุนได้ในอนาคตผ่าน session_qr_codes</p>
+          <p className="mt-3 text-sm text-slate-500">แสดง QR สดสำหรับ session นี้ และหมุน token ได้จากปุ่มด้านซ้าย</p>
         </div>
       </Card>
 

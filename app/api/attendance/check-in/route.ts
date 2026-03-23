@@ -1,16 +1,21 @@
 import { NextResponse } from 'next/server';
+import { getSessionProfile } from '@/lib/auth/session';
 import { getEnv } from '@/lib/config/env';
-import { getCurrentQrToken, getStudentDashboard, recordCheckInAttempt } from '@/lib/services/app-data';
+import { getCurrentQrToken, getExistingRecordStatus, getSessionById, isStudentEnrolled, recordCheckInAttempt } from '@/lib/services/app-data';
 import { buildAttendanceAttemptLog, validateAttendanceCheckIn } from '@/lib/services/attendance-validator';
 import { writeAuditLog } from '@/lib/services/audit-log';
 import { attendanceCheckInSchema } from '@/lib/validators/attendance';
 
 export async function POST(request: Request) {
+  const actor = await getSessionProfile();
+  if (!actor || actor.role !== 'student') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const json = await request.json();
   const payload = attendanceCheckInSchema.parse(json);
   const env = getEnv();
-  const dashboard = getStudentDashboard();
-  const session = dashboard.activeSessions.find((item) => item.sessionId === payload.sessionId);
+  const session = getSessionById(payload.sessionId);
 
   if (!session) {
     return NextResponse.json(
@@ -28,11 +33,18 @@ export async function POST(request: Request) {
   }
 
   const context = {
-    identity: dashboard.student,
+    identity: {
+      profileId: actor.profileId,
+      studentId: actor.studentId ?? '',
+      studentCode: actor.email.split('@')[0] ?? '',
+      fullNameTh: actor.name,
+      lineUserId: actor.lineUserId ?? '',
+      role: 'student' as const
+    },
     session,
-    enrollmentConfirmed: true,
-    activeQrToken: getCurrentQrToken(),
-    existingRecordStatus: undefined,
+    enrollmentConfirmed: isStudentEnrolled(actor.profileId, payload.sessionId),
+    activeQrToken: getCurrentQrToken(payload.sessionId) ?? '',
+    existingRecordStatus: getExistingRecordStatus(actor.profileId, payload.sessionId),
     maxAccuracyM: env.GPS_MAX_ACCURACY_M,
     defaultRadiusM: env.DEFAULT_GEOFENCE_RADIUS_M,
     manualApprovalPolicy: env.MANUAL_APPROVAL_POLICY
@@ -43,16 +55,18 @@ export async function POST(request: Request) {
   const attemptLog = buildAttendanceAttemptLog(context, payload, decision);
 
   recordCheckInAttempt({
+    profileId: actor.profileId,
+    sessionId: payload.sessionId,
     attemptId,
     decision,
     submittedAt: attemptLog.submittedAt
   });
 
   await writeAuditLog({
-    actorProfileId: dashboard.student.profileId,
+    actorProfileId: actor.profileId,
     actionType: 'attendance.check_in_submitted',
     entityType: 'class_session',
-    entityId: session.sessionId,
+    entityId: payload.sessionId,
     metadata: {
       attemptId,
       decision,

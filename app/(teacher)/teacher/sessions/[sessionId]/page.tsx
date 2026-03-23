@@ -1,18 +1,20 @@
 import { notFound } from 'next/navigation';
 import { SessionMonitor } from '@/components/teacher/session-monitor';
-import { getActiveSessionId, getTeacherMonitorData } from '@/lib/services/app-data';
+import { requireSessionProfile } from '@/lib/auth/session';
+import { getTeacherMonitorData } from '@/lib/services/app-data';
 import { generateQrDataUrl, parseQrPayload } from '@/lib/utils/qr';
 
 export const dynamic = 'force-dynamic';
 
 export default async function TeacherSessionMonitorPage({ params }: Readonly<{ params: Promise<{ sessionId: string }> }>) {
+  await requireSessionProfile(['teacher', 'admin', 'super_admin']);
   const { sessionId } = await params;
+  const monitor = getTeacherMonitorData(sessionId);
 
-  if (sessionId !== getActiveSessionId()) {
+  if (!monitor) {
     notFound();
   }
 
-  const monitor = getTeacherMonitorData();
   const payload = parseQrPayload(monitor.qrPayload);
   if (!payload) {
     throw new Error('Invalid QR payload');

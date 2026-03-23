@@ -789,6 +789,11 @@ export function createManualApprovalRequest(input: {
     return null;
   }
 
+  const canRequestManualApproval = attempt.decision.requiresManualApproval || attempt.decision.verificationResult === 'pending_approval';
+  if (!canRequestManualApproval) {
+    return null;
+  }
+
   const existing = state.manualApprovalQueue.find((item) => item.attemptId === input.attendanceAttemptId);
   if (existing) {
     return clone(existing);

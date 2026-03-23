@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSessionProfile } from '@/lib/auth/session';
-import { getSessionOverview } from '@/lib/services/app-data';
+import { getSessionOverview, isTeacherAssignedToSession } from '@/lib/services/app-data';
 
 export async function GET(request: Request) {
   const actor = await getSessionProfile();
@@ -9,6 +9,10 @@ export async function GET(request: Request) {
   }
 
   const sessionId = new URL(request.url).searchParams.get('sessionId') ?? undefined;
+  if (actor.role === 'teacher' && sessionId && !isTeacherAssignedToSession(actor.profileId, sessionId)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   const overview = getSessionOverview(sessionId);
   if (!overview) {
     return NextResponse.json({ error: 'No active session' }, { status: 404 });

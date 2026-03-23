@@ -1,14 +1,18 @@
 import { notFound } from 'next/navigation';
 import { SessionMonitor } from '@/components/teacher/session-monitor';
 import { requireSessionProfile } from '@/lib/auth/session';
-import { getTeacherMonitorData } from '@/lib/services/app-data';
+import { getTeacherMonitorData, isTeacherAssignedToSession } from '@/lib/services/app-data';
 import { generateQrDataUrl, parseQrPayload } from '@/lib/utils/qr';
 
 export const dynamic = 'force-dynamic';
 
 export default async function TeacherSessionMonitorPage({ params }: Readonly<{ params: Promise<{ sessionId: string }> }>) {
-  await requireSessionProfile(['teacher', 'admin', 'super_admin']);
+  const profile = await requireSessionProfile(['teacher', 'admin', 'super_admin']);
   const { sessionId } = await params;
+  if (profile.role === 'teacher' && !isTeacherAssignedToSession(profile.profileId, sessionId)) {
+    notFound();
+  }
+
   const monitor = getTeacherMonitorData(sessionId);
 
   if (!monitor) {

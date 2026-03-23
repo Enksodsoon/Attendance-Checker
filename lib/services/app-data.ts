@@ -5,6 +5,7 @@ import type {
   AdminCourseSection,
   AdminExportItem,
   AdminRoomRecord,
+  AdminSessionRecord,
   AdminStudentRecord,
   AdminUserRecord,
   AttendanceDecision,
@@ -933,6 +934,24 @@ export function getAdminCourses() {
   ) as AdminCourseSection[];
 }
 
+function buildAdminSessionRecord(state: AppState, session: SessionState): AdminSessionRecord {
+  const summary = buildSessionSummary(state, session);
+  return {
+    ...summary,
+    sectionId: session.sectionId
+  };
+}
+
+export function getAdminSessions() {
+  const state = getState();
+  return clone(
+    state.sessions
+      .slice()
+      .sort((a, b) => new Date(b.window.scheduledStartAt).getTime() - new Date(a.window.scheduledStartAt).getTime())
+      .map((session) => buildAdminSessionRecord(state, session))
+  ) as AdminSessionRecord[];
+}
+
 export function getAdminRooms() {
   const state = getState();
   return clone(
@@ -1204,6 +1223,34 @@ export function addAdminCourse(input: {
   return clone(buildSessionSummary(state, session));
 }
 
+export function addAdminSession(input: {
+  sectionId: string;
+  status: SessionSummary['status'];
+  allowManualApproval: boolean;
+  window: SessionSummary['window'];
+}) {
+  const state = getState();
+  const section = state.sections.find((item) => item.sectionId === input.sectionId);
+  if (!section) {
+    return null;
+  }
+
+  const session: SessionState = {
+    sessionId: `session-${Date.now()}`,
+    sectionId: input.sectionId,
+    status: input.status,
+    verificationMode: 'gps_qr_timewindow',
+    attendanceMode: 'check_in_only',
+    allowManualApproval: input.allowManualApproval,
+    window: input.window
+  };
+
+  state.sessions.unshift(session);
+  state.qrTokens[session.sessionId] = generateQrToken();
+  saveState(state);
+  return clone(buildAdminSessionRecord(state, session));
+}
+
 export function updateAdminCourse(input: {
   sectionId: string;
   courseCode: string;
@@ -1246,6 +1293,26 @@ export function updateAdminCourse(input: {
   );
 }
 
+export function updateAdminSession(input: {
+  sessionId: string;
+  status: SessionSummary['status'];
+  allowManualApproval: boolean;
+  window: SessionSummary['window'];
+}) {
+  const state = getState();
+  const session = state.sessions.find((item) => item.sessionId === input.sessionId);
+  if (!session) {
+    return null;
+  }
+
+  session.status = input.status;
+  session.allowManualApproval = input.allowManualApproval;
+  session.window = input.window;
+
+  saveState(state);
+  return clone(buildAdminSessionRecord(state, session));
+}
+
 export function deleteAdminCourse(sectionId: string) {
   const state = getState();
   const section = state.sections.find((item) => item.sectionId === sectionId);
@@ -1268,6 +1335,25 @@ export function deleteAdminCourse(sectionId: string) {
 
   saveState(state);
   return clone(section);
+}
+
+export function deleteAdminSession(sessionId: string) {
+  const state = getState();
+  const session = state.sessions.find((item) => item.sessionId === sessionId);
+  if (!session) {
+    return null;
+  }
+
+  state.sessions = state.sessions.filter((item) => item.sessionId !== sessionId);
+  state.records = state.records.filter((item) => item.sessionId !== sessionId);
+  state.manualApprovalQueue = state.manualApprovalQueue.filter((item) => item.sessionId !== sessionId);
+  state.attempts = Object.fromEntries(
+    Object.entries(state.attempts).filter(([, attempt]) => attempt.sessionId !== sessionId)
+  );
+  delete state.qrTokens[sessionId];
+
+  saveState(state);
+  return clone(buildAdminSessionRecord(state, session));
 }
 
 export function addAdminRoom(input: {

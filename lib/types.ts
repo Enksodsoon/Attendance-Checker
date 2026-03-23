@@ -223,6 +223,10 @@ export interface AdminCourseSection {
   enrolledCount: number;
 }
 
+export interface AdminSessionRecord extends SessionSummary {
+  sectionId: string;
+}
+
 export interface AdminRoomRecord {
   roomId: string;
   roomName: string;

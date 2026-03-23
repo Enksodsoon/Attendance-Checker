@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { getStudentDashboard } from '@/lib/services/app-data';
 import { writeAuditLog } from '@/lib/services/audit-log';
-import { demoStudentDashboard } from '@/lib/services/demo-data';
 
 const schema = z.object({
   studentCode: z.string().min(6).max(20),
@@ -10,23 +10,24 @@ const schema = z.object({
 
 export async function POST(request: Request) {
   const payload = schema.parse(await request.json());
+  const dashboard = getStudentDashboard();
 
-  if (payload.studentCode !== demoStudentDashboard.student.studentCode) {
-    return NextResponse.json({ error: 'ไม่พบรหัสนักศึกษาในข้อมูลตัวอย่าง' }, { status: 404 });
+  if (payload.studentCode !== dashboard.student.studentCode) {
+    return NextResponse.json({ error: 'ไม่พบรหัสนักศึกษาในข้อมูลระบบปัจจุบัน' }, { status: 404 });
   }
 
   await writeAuditLog({
-    actorProfileId: demoStudentDashboard.student.profileId,
+    actorProfileId: dashboard.student.profileId,
     actionType: 'line_account.bound',
     entityType: 'profile',
-    entityId: demoStudentDashboard.student.profileId,
+    entityId: dashboard.student.profileId,
     metadata: payload
   });
 
   return NextResponse.json({
     status: 'success',
-    profileId: demoStudentDashboard.student.profileId,
-    lineUserId: demoStudentDashboard.student.lineUserId,
+    profileId: dashboard.student.profileId,
+    lineUserId: dashboard.student.lineUserId,
     studentCode: payload.studentCode,
     fullNameTh: payload.fullNameTh
   });

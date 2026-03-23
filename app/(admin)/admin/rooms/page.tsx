@@ -3,7 +3,9 @@ import Link from 'next/link';
 import { AdminSectionShell } from '@/components/admin/admin-section-shell';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { demoAdminRooms } from '@/lib/services/demo-admin';
+import { getAdminRooms } from '@/lib/services/app-data';
+
+export const dynamic = 'force-dynamic';
 
 const gpsTone = {
   strict: 'red',
@@ -11,6 +13,8 @@ const gpsTone = {
 } as const;
 
 export default function AdminRoomsPage() {
+  const rooms = getAdminRooms();
+
   return (
     <AdminSectionShell
       eyebrow="Admin / room-geofence management"
@@ -18,7 +22,7 @@ export default function AdminRoomsPage() {
       description="ตรวจสอบพิกัดรัศมีของห้องเรียนที่ใช้กับ attendance engine และเปิดไปยังคาบเรียนที่กำลังใช้ geofence ได้โดยตรง."
     >
       <div className="grid gap-4 md:grid-cols-2">
-        {demoAdminRooms.map((room) => (
+        {rooms.map((room) => (
           <Card key={room.roomId}>
             <p className="text-sm text-slate-500">{room.roomId}</p>
             <h2 className="mt-2 text-2xl font-semibold text-slate-900">{room.roomName}</h2>

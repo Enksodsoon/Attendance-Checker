@@ -35,7 +35,7 @@ const items: ReadonlyArray<{
   {
     title: 'export center',
     href: '/admin/exports' as Route,
-    description: 'ดาวน์โหลด CSV/JSON จากระบบตัวอย่างและเปิด payload ที่หน้าอื่นใช้จริง'
+    description: 'ดาวน์โหลด CSV/JSON จากระบบปัจจุบันและเปิด payload ที่หน้าอื่นใช้จริง'
   }
 ];
 

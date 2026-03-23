@@ -31,6 +31,7 @@ export function HistoryList({ items }: Readonly<{ items: AttendanceHistoryItem[]
               <Badge tone={toneMap[item.status]}>{item.status}</Badge>
             </div>
             {item.checkedInAt ? <p className="mt-3 text-sm text-slate-600">เวลาเช็กชื่อ: {new Date(item.checkedInAt).toLocaleString('th-TH')}</p> : null}
+            {item.note ? <p className="mt-2 text-sm text-slate-600">หมายเหตุ: {item.note}</p> : null}
           </div>
         ))}
       </div>

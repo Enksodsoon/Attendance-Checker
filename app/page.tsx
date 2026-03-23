@@ -1,5 +1,6 @@
 import type { Route } from 'next';
 import Link from 'next/link';
+import { getActiveSessionRoute } from '@/lib/services/app-data';
 
 const sections: ReadonlyArray<{
   title: string;
@@ -13,7 +14,7 @@ const sections: ReadonlyArray<{
   },
   {
     title: 'แดชบอร์ดอาจารย์',
-    href: '/teacher/sessions/demo-session' as Route,
+    href: getActiveSessionRoute() as Route,
     description: 'ดูสถานะรายชื่อแบบสด แสดง QR และส่งออก CSV'
   },
   {
@@ -22,6 +23,8 @@ const sections: ReadonlyArray<{
     description: 'จัดการโครงสร้างรายวิชา ห้องเรียน ผู้ใช้ และบันทึกการตรวจสอบ'
   }
 ];
+
+export const dynamic = 'force-dynamic';
 
 export default function HomePage() {
   return (

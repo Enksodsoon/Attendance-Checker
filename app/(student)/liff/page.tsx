@@ -4,12 +4,14 @@ import { LiffBootstrap } from '@/components/student/liff-bootstrap';
 import { HistoryList } from '@/components/student/history-list';
 import { Card } from '@/components/ui/card';
 import { StatCard } from '@/components/ui/stat-card';
-import { demoStudentDashboard } from '@/lib/services/demo-data';
+import { getStudentDashboard } from '@/lib/services/app-data';
+
+export const dynamic = 'force-dynamic';
 
 const liffCheckInRoute: Route = '/liff/check-in';
 
 export default function LiffHomePage() {
-  const { student, activeSessions, summary, recentHistory } = demoStudentDashboard;
+  const { student, activeSessions, summary, recentHistory } = getStudentDashboard();
 
   return (
     <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-6 px-4 py-6 md:px-6">
@@ -25,7 +27,7 @@ export default function LiffHomePage() {
       <Card>
         <p className="text-sm text-slate-500">Home dashboard</p>
         <h1 className="mt-2 text-3xl font-bold text-slate-900">สวัสดี {student.fullNameTh}</h1>
-        <p className="mt-2 text-sm text-slate-600">รหัสนักศึกษา {student.studentCode} · บัญชี LINE ถูก bind แล้วในระบบตัวอย่าง</p>
+        <p className="mt-2 text-sm text-slate-600">รหัสนักศึกษา {student.studentCode} · บัญชี LINE พร้อมใช้งานกับข้อมูลจริงของคาบปัจจุบัน</p>
         <div className="mt-5 space-y-4">
           {activeSessions.map((session) => (
             <div key={session.sessionId} className="rounded-2xl border border-slate-200 p-4">
@@ -34,7 +36,7 @@ export default function LiffHomePage() {
                   <p className="font-semibold text-slate-900">{session.courseCode} · {session.courseNameTh}</p>
                   <p className="mt-1 text-sm text-slate-500">ตอน {session.sectionCode} · {session.room.roomName}</p>
                 </div>
-                <Link href={liffCheckInRoute} className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white" style={{ color: "#ffffff" }}>
+                <Link href={liffCheckInRoute} className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white" style={{ color: '#ffffff' }}>
                   เข้า flow เช็กชื่อ
                 </Link>
               </div>

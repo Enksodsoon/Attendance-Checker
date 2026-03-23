@@ -26,14 +26,20 @@ const decisionMessageMap: Record<AttendanceDecision['reasonCode'], string> = {
   duplicate_check_in: 'คุณเช็กชื่อสำเร็จไปแล้วก่อนหน้านี้',
   invalid_qr: 'QR token ไม่ถูกต้องหรือหมดอายุ',
   gps_missing: 'ยังไม่มีข้อมูลตำแหน่งเพียงพอ',
-  gps_accuracy_poor: 'ความแม่นยำ GPS ต่ำเกินเกณฑ์อัตโนมัติ',
+  gps_accuracy_poor: 'GPS ยังไม่แม่นยำพอ ระบบจึงเปิดทางให้ส่งคำร้อง manual approval ต่อได้',
   outside_geofence: 'ตำแหน่งอยู่นอกพื้นที่ที่อนุญาต'
 };
 
-export function CheckInForm({ session }: Readonly<{ session: SessionSummary }>) {
+export function CheckInForm({
+  session,
+  initialQrToken
+}: Readonly<{
+  session: SessionSummary;
+  initialQrToken: string;
+}>) {
   const [geoState, setGeoState] = useState<GeoState>({ status: 'idle' });
-  const [qrToken, setQrToken] = useState('demo-token-20260321');
-  const [manualReason, setManualReason] = useState('');
+  const [qrToken, setQrToken] = useState(initialQrToken);
+  const [manualReason, setManualReason] = useState('GPS ในอาคารไม่เสถียร แต่เช็กชื่อจากห้องเรียนจริง');
   const [decision, setDecision] = useState<AttendanceDecision | null>(null);
   const [attemptId, setAttemptId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -109,6 +115,9 @@ export function CheckInForm({ session }: Readonly<{ session: SessionSummary }>) 
 
       setDecision(json.decision);
       setAttemptId(json.attemptId);
+      if (json.decision.verificationResult === 'accepted') {
+        setManualStatus('เช็กชื่อสำเร็จแล้ว รายการนี้จะปรากฏในหน้า history และ live monitor ทันที');
+      }
     } catch (submitError) {
       setErrorMessage(submitError instanceof Error ? submitError.message : 'ส่งข้อมูลเช็กชื่อไม่สำเร็จ');
     } finally {
@@ -141,7 +150,7 @@ export function CheckInForm({ session }: Readonly<{ session: SessionSummary }>) 
         throw new Error(payload.error ?? 'ส่งคำร้องไม่สำเร็จ');
       }
 
-      setManualStatus('ส่งคำร้อง manual approval สำเร็จแล้ว');
+      setManualStatus('ส่งคำร้อง manual approval สำเร็จแล้ว รายการนี้จะไปอยู่ในหน้า admin/teacher queue');
     } catch (manualError) {
       setManualStatus(manualError instanceof Error ? manualError.message : 'ส่งคำร้องไม่สำเร็จ');
     } finally {
@@ -154,7 +163,10 @@ export function CheckInForm({ session }: Readonly<{ session: SessionSummary }>) 
       <div>
         <p className="text-sm text-slate-500">Session detail / eligibility</p>
         <h2 className="text-2xl font-semibold text-slate-900">{session.courseCode} · {session.courseNameTh}</h2>
-        <p className="mt-2 text-sm text-slate-600">ห้อง {session.room.roomName} · ปิดเช็กชื่อ {new Date(session.window.attendanceCloseAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</p>
+        <p className="mt-2 text-sm text-slate-600">
+          ห้อง {session.room.roomName} · ปิดเช็กชื่อ{' '}
+          {new Date(session.window.attendanceCloseAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+        </p>
       </div>
 
       <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-700">
@@ -188,7 +200,8 @@ export function CheckInForm({ session }: Readonly<{ session: SessionSummary }>) 
       <button
         onClick={handleSubmit}
         disabled={submitting}
-        className="inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white disabled:opacity-60" style={{ color: "#ffffff" }}
+        className="inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white disabled:opacity-60"
+        style={{ color: '#ffffff' }}
       >
         {submitting ? 'กำลังตรวจสอบ...' : 'ส่งข้อมูลเช็กชื่อ'}
       </button>

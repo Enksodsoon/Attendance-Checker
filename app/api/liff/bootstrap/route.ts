@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
-import { demoStudentDashboard } from '@/lib/services/demo-data';
+import { getStudentDashboard } from '@/lib/services/app-data';
 
 export async function GET() {
+  const dashboard = getStudentDashboard();
+
   return NextResponse.json({
-    student: demoStudentDashboard.student,
-    activeSessions: demoStudentDashboard.activeSessions,
-    summary: demoStudentDashboard.summary
+    student: dashboard.student,
+    activeSessions: dashboard.activeSessions,
+    summary: dashboard.summary
   });
 }

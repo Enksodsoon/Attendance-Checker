@@ -1,15 +1,16 @@
 import { NextResponse } from 'next/server';
 import { getEnv } from '@/lib/config/env';
+import { getCurrentQrToken, getStudentDashboard, recordCheckInAttempt } from '@/lib/services/app-data';
 import { buildAttendanceAttemptLog, validateAttendanceCheckIn } from '@/lib/services/attendance-validator';
 import { writeAuditLog } from '@/lib/services/audit-log';
-import { demoStudentDashboard } from '@/lib/services/demo-data';
 import { attendanceCheckInSchema } from '@/lib/validators/attendance';
 
 export async function POST(request: Request) {
   const json = await request.json();
   const payload = attendanceCheckInSchema.parse(json);
   const env = getEnv();
-  const session = demoStudentDashboard.activeSessions.find((item) => item.sessionId === payload.sessionId);
+  const dashboard = getStudentDashboard();
+  const session = dashboard.activeSessions.find((item) => item.sessionId === payload.sessionId);
 
   if (!session) {
     return NextResponse.json(
@@ -26,40 +27,29 @@ export async function POST(request: Request) {
     );
   }
 
-  const decision = validateAttendanceCheckIn(
-    {
-      identity: demoStudentDashboard.student,
-      session,
-      enrollmentConfirmed: true,
-      activeQrToken: 'demo-token-20260321',
-      existingRecordStatus: undefined,
-      maxAccuracyM: env.GPS_MAX_ACCURACY_M,
-      defaultRadiusM: env.DEFAULT_GEOFENCE_RADIUS_M,
-      manualApprovalPolicy: env.MANUAL_APPROVAL_POLICY,
-      nowIso: '2026-03-21T02:06:00.000Z'
-    },
-    payload
-  );
+  const context = {
+    identity: dashboard.student,
+    session,
+    enrollmentConfirmed: true,
+    activeQrToken: getCurrentQrToken(),
+    existingRecordStatus: undefined,
+    maxAccuracyM: env.GPS_MAX_ACCURACY_M,
+    defaultRadiusM: env.DEFAULT_GEOFENCE_RADIUS_M,
+    manualApprovalPolicy: env.MANUAL_APPROVAL_POLICY
+  };
 
+  const decision = validateAttendanceCheckIn(context, payload);
   const attemptId = `attempt-${Date.now()}`;
-  const attemptLog = buildAttendanceAttemptLog(
-    {
-      identity: demoStudentDashboard.student,
-      session,
-      enrollmentConfirmed: true,
-      activeQrToken: 'demo-token-20260321',
-      existingRecordStatus: undefined,
-      maxAccuracyM: env.GPS_MAX_ACCURACY_M,
-      defaultRadiusM: env.DEFAULT_GEOFENCE_RADIUS_M,
-      manualApprovalPolicy: env.MANUAL_APPROVAL_POLICY,
-      nowIso: '2026-03-21T02:06:00.000Z'
-    },
-    payload,
-    decision
-  );
+  const attemptLog = buildAttendanceAttemptLog(context, payload, decision);
+
+  recordCheckInAttempt({
+    attemptId,
+    decision,
+    submittedAt: attemptLog.submittedAt
+  });
 
   await writeAuditLog({
-    actorProfileId: demoStudentDashboard.student.profileId,
+    actorProfileId: dashboard.student.profileId,
     actionType: 'attendance.check_in_submitted',
     entityType: 'class_session',
     entityId: session.sessionId,

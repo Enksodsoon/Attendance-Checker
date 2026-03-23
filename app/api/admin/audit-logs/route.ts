@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { demoAdminAuditLogs } from '@/lib/services/demo-admin';
+import { getAuditLogs } from '@/lib/services/app-data';
 
 export async function GET() {
   return NextResponse.json({
-    items: demoAdminAuditLogs
+    items: getAuditLogs()
   });
 }

@@ -1,6 +1,8 @@
 import { AuditLogViewer } from '@/components/admin/audit-log-viewer';
 import { AdminSectionShell } from '@/components/admin/admin-section-shell';
 
+export const dynamic = 'force-dynamic';
+
 export default function AdminAuditLogsPage() {
   return (
     <AdminSectionShell

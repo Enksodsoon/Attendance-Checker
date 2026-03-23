@@ -164,3 +164,62 @@ export interface AuditLogInput {
   entityId: string;
   metadata?: Record<string, unknown>;
 }
+
+export interface AdminUserRecord {
+  profileId: string;
+  name: string;
+  email: string;
+  role: AppRole;
+  status: ProfileStatus;
+  lastActiveAt: string;
+}
+
+export interface AdminCourseSection {
+  sectionId: string;
+  courseCode: string;
+  courseNameTh: string;
+  sectionCode: string;
+  semesterLabel: string;
+  teacherName: string;
+  roomName: string;
+  activeSessionId?: string;
+  enrolledCount: number;
+}
+
+export interface AdminRoomRecord {
+  roomId: string;
+  roomName: string;
+  latitude: number;
+  longitude: number;
+  radiusM: number;
+  gpsPolicy: GpsPolicy;
+  activeSessionId?: string;
+}
+
+export interface ManualApprovalQueueItem {
+  attemptId: string;
+  sessionId: string;
+  studentCode: string;
+  fullNameTh: string;
+  reasonText: string;
+  requestedAt: string;
+  status: ManualApprovalStatus;
+}
+
+export interface AdminAuditLogItem {
+  id: string;
+  occurredAt: string;
+  actorProfileId: string;
+  actorLabel: string;
+  actionType: string;
+  entityType: string;
+  entityId: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface AdminExportItem {
+  id: string;
+  label: string;
+  description: string;
+  href: string;
+}

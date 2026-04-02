@@ -16,7 +16,7 @@ const sections = [
     href: '/admin',
     description: 'จัดการโครงสร้างรายวิชา ห้องเรียน ผู้ใช้ และบันทึกการตรวจสอบ'
   }
-];
+] as const;
 
 export default function HomePage() {
   return (

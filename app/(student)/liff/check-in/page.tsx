@@ -7,9 +7,14 @@ type SearchParams = {
   method?: string;
 };
 
-export default function LiffCheckInPage({ searchParams }: Readonly<{ searchParams?: SearchParams }>) {
+export default async function LiffCheckInPage({
+  searchParams
+}: Readonly<{
+  searchParams?: Promise<SearchParams>;
+}>) {
+  const resolvedSearchParams = await searchParams;
   const session = demoStudentDashboard.activeSessions[0];
-  const initialMethod = searchParams?.method === 'gps' ? 'gps' : 'qr';
+  const initialMethod = resolvedSearchParams?.method === 'gps' ? 'gps' : 'qr';
 
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 px-4 py-6 md:px-6">

@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { SessionMonitor } from '@/components/teacher/session-monitor';
 import { requireSessionProfile } from '@/lib/auth/session';
-import { getTeacherMonitorData, isTeacherAssignedToSession } from '@/lib/services/app-data';
+import { getManualApprovalQueue, getTeacherMonitorData, isTeacherAssignedToSession } from '@/lib/services/app-data';
 import { generateQrDataUrl, parseQrPayload } from '@/lib/utils/qr';
 
 export const dynamic = 'force-dynamic';
@@ -14,6 +14,7 @@ export default async function TeacherSessionMonitorPage({ params }: Readonly<{ p
   }
 
   const monitor = getTeacherMonitorData(sessionId);
+  const manualApprovalQueue = getManualApprovalQueue(sessionId);
 
   if (!monitor) {
     notFound();
@@ -28,7 +29,7 @@ export default async function TeacherSessionMonitorPage({ params }: Readonly<{ p
 
   return (
     <main className="mx-auto min-h-screen max-w-6xl px-4 py-6 md:px-6">
-      <SessionMonitor data={monitor} qrDataUrl={qrDataUrl} />
+      <SessionMonitor data={monitor} qrDataUrl={qrDataUrl} manualApprovalQueue={manualApprovalQueue} />
     </main>
   );
 }

@@ -7,14 +7,40 @@ import type {
   SessionSummary
 } from '@/lib/types';
 import { calculateDistanceMeters } from '@/lib/utils/distance';
+import { parseQrPayload } from '@/lib/utils/qr';
 
 
 function hasGpsCoordinates(payload: CheckInPayload): payload is CheckInPayload & { latitude: number; longitude: number } {
   return payload.latitude !== undefined && payload.longitude !== undefined;
 }
 
+
+export function resolveSubmittedQrToken(rawQrToken: string | undefined): string {
+  const trimmed = rawQrToken?.trim() ?? '';
+  if (!trimmed) {
+    return '';
+  }
+
+  const payload = parseQrPayload(trimmed);
+  if (payload?.token) {
+    return payload.token;
+  }
+
+  try {
+    const url = new URL(trimmed);
+    const token = url.searchParams.get('token');
+    if (token?.trim()) {
+      return token.trim();
+    }
+  } catch {
+    // Not a URL; treat as raw token.
+  }
+
+  return trimmed;
+}
+
 export function resolveCheckInMethod(payload: CheckInPayload): 'qr' | 'gps' | 'hybrid' | 'none' {
-  const hasQr = Boolean(payload.qrToken?.trim());
+  const hasQr = Boolean(resolveSubmittedQrToken(payload.qrToken));
   const hasGps = hasGpsCoordinates(payload);
 
   if (hasQr && hasGps) {
@@ -92,7 +118,8 @@ export function validateAttendanceCheckIn(context: AttendanceValidationContext, 
     });
   }
 
-  const method = resolveCheckInMethod(payload);
+  const resolvedQrToken = resolveSubmittedQrToken(payload.qrToken);
+  const method = resolveCheckInMethod({ ...payload, qrToken: resolvedQrToken });
 
   if (method === 'none') {
     return buildDecision({
@@ -103,7 +130,7 @@ export function validateAttendanceCheckIn(context: AttendanceValidationContext, 
     });
   }
 
-  if ((method === 'qr' || method === 'hybrid') && context.activeQrToken !== payload.qrToken) {
+  if ((method === 'qr' || method === 'hybrid') && context.activeQrToken !== resolvedQrToken) {
     return buildDecision({
       status: 'rejected',
       verificationResult: 'rejected',
@@ -201,7 +228,7 @@ export function buildAttendanceAttemptLog(
     longitude: payload.longitude,
     gpsAccuracyM: payload.gpsAccuracyM,
     distanceFromCenterM: decision.distanceFromCenterM,
-    qrTokenSubmitted: payload.qrToken,
+    qrTokenSubmitted: resolveSubmittedQrToken(payload.qrToken),
     verificationResult: decision.verificationResult,
     failureReason: decision.reasonCode,
     deviceUserAgent: payload.deviceUserAgent,

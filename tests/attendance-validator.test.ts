@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveCheckInMethod, validateAttendanceCheckIn } from '@/lib/services/attendance-validator';
+import { resolveCheckInMethod, resolveSubmittedQrToken, validateAttendanceCheckIn } from '@/lib/services/attendance-validator';
 import type { AttendanceValidationContext, CheckInPayload, SessionSummary, StudentIdentity } from '@/lib/types';
 
 const baseSession: SessionSummary = {
@@ -62,11 +62,33 @@ describe('resolveCheckInMethod', () => {
   });
 });
 
+
+
+describe('resolveSubmittedQrToken', () => {
+  it('extracts token from JSON payloads and URLs', () => {
+    expect(resolveSubmittedQrToken('{"sessionId":"s1","token":"json-token"}')).toBe('json-token');
+    expect(resolveSubmittedQrToken('https://example.com/check-in?token=url-token')).toBe('url-token');
+    expect(resolveSubmittedQrToken('  raw-token  ')).toBe('raw-token');
+  });
+});
+
 describe('validateAttendanceCheckIn', () => {
   it('accepts QR-only check-in when token is valid', () => {
     const payload: CheckInPayload = { sessionId: 'session-1', qrToken: 'QR-DEMO-TOKEN' };
     const decision = validateAttendanceCheckIn(buildContext(), payload);
 
+    expect(decision.verificationResult).toBe('accepted');
+    expect(decision.reasonCode).toBe('ok_present');
+  });
+
+
+  it('accepts QR payload JSON from scanner value', () => {
+    const payload: CheckInPayload = {
+      sessionId: 'session-1',
+      qrToken: JSON.stringify({ sessionId: 'session-1', token: 'QR-DEMO-TOKEN' })
+    };
+
+    const decision = validateAttendanceCheckIn(buildContext(), payload);
     expect(decision.verificationResult).toBe('accepted');
     expect(decision.reasonCode).toBe('ok_present');
   });

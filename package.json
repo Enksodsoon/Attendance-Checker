@@ -8,8 +8,9 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
+    "check:conflicts": "node scripts/check-conflicts.mjs",
     "typecheck": "node scripts/typecheck.mjs",
-    "check": "npm run lint && npm run typecheck",
+    "check": "npm run check:conflicts && npm run lint && npm run typecheck",
     "seed": "node scripts/seed-demo.mjs"
   },
   "dependencies": {

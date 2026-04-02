@@ -1,46 +1,29 @@
 import Link from 'next/link';
+import { UserRound } from 'lucide-react';
+import { ActiveSessionList } from '@/components/student/active-session-list';
+import { AttendanceCalendar } from '@/components/student/attendance-calendar';
 import { LiffBootstrap } from '@/components/student/liff-bootstrap';
-import { HistoryList } from '@/components/student/history-list';
 import { Card } from '@/components/ui/card';
-import { StatCard } from '@/components/ui/stat-card';
 import { demoStudentDashboard } from '@/lib/services/demo-data';
 
 export default function LiffHomePage() {
-  const { student, activeSessions, summary, recentHistory } = demoStudentDashboard;
+  const { student, activeSessions, recentHistory } = demoStudentDashboard;
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-6 px-4 py-6 md:px-6">
+    <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-5 px-4 py-5">
       <LiffBootstrap />
+      <AttendanceCalendar history={recentHistory} />
+      <ActiveSessionList sessions={activeSessions} />
 
-      <section className="grid gap-4 md:grid-cols-4">
-        <StatCard label="มาเรียน" value={String(summary.totalPresent)} helper="ครั้ง" />
-        <StatCard label="สาย" value={String(summary.totalLate)} helper="ครั้ง" />
-        <StatCard label="รออนุมัติ" value={String(summary.totalPending)} helper="รายการ" />
-        <StatCard label="ขาด" value={String(summary.totalAbsent)} helper="ครั้ง" />
-      </section>
-
-      <Card>
-        <p className="text-sm text-slate-500">Home dashboard</p>
-        <h1 className="mt-2 text-3xl font-bold text-slate-900">สวัสดี {student.fullNameTh}</h1>
-        <p className="mt-2 text-sm text-slate-600">รหัสนักศึกษา {student.studentCode} · บัญชี LINE ถูก bind แล้วในระบบตัวอย่าง</p>
-        <div className="mt-5 space-y-4">
-          {activeSessions.map((session) => (
-            <div key={session.sessionId} className="rounded-2xl border border-slate-200 p-4">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <p className="font-semibold text-slate-900">{session.courseCode} · {session.courseNameTh}</p>
-                  <p className="mt-1 text-sm text-slate-500">ตอน {session.sectionCode} · {session.room.roomName}</p>
-                </div>
-                <Link href="/liff/check-in" className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white">
-                  เข้า flow เช็กชื่อ
-                </Link>
-              </div>
-            </div>
-          ))}
+      <Card className="flex items-center justify-between">
+        <div>
+          <p className="text-xs text-slate-500">นักศึกษา</p>
+          <p className="font-semibold text-slate-900">{student.fullNameTh}</p>
         </div>
+        <Link href="/liff/history" className="inline-flex items-center gap-1 rounded-full border border-slate-300 px-3 py-2 text-sm text-slate-700">
+          <UserRound className="h-4 w-4" /> ประวัติการเช็กชื่อ
+        </Link>
       </Card>
-
-      <HistoryList items={recentHistory} />
     </main>
   );
 }

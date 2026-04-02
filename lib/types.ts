@@ -80,7 +80,8 @@ export interface StudentDashboardData {
 
 export interface CheckInPayload {
   sessionId: string;
-  qrToken: string;
+  qrToken?: string;
+  checkInMethod: 'qr' | 'gps';
   latitude?: number;
   longitude?: number;
   gpsAccuracyM?: number;
@@ -99,6 +100,7 @@ export interface AttendanceDecision {
     | 'outside_time_window'
     | 'duplicate_check_in'
     | 'invalid_qr'
+    | 'missing_qr'
     | 'gps_missing'
     | 'gps_accuracy_poor'
     | 'outside_geofence';
@@ -127,7 +129,7 @@ export interface AttendanceAttemptLogInput {
   longitude?: number;
   gpsAccuracyM?: number;
   distanceFromCenterM?: number;
-  qrTokenSubmitted: string;
+  qrTokenSubmitted: string | null;
   verificationResult: AttendanceDecision['verificationResult'];
   failureReason: AttendanceDecision['reasonCode'];
   deviceUserAgent?: string;

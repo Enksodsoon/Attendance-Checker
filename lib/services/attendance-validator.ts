@@ -70,13 +70,24 @@ export function validateAttendanceCheckIn(context: AttendanceValidationContext, 
     });
   }
 
-  if (context.activeQrToken !== payload.qrToken) {
-    return buildDecision({
-      status: 'rejected',
-      verificationResult: 'rejected',
-      reasonCode: 'invalid_qr',
-      requiresManualApproval: false
-    });
+  if (payload.checkInMethod === 'qr') {
+    if (!payload.qrToken) {
+      return buildDecision({
+        status: 'rejected',
+        verificationResult: 'rejected',
+        reasonCode: 'missing_qr',
+        requiresManualApproval: false
+      });
+    }
+
+    if (context.activeQrToken !== payload.qrToken) {
+      return buildDecision({
+        status: 'rejected',
+        verificationResult: 'rejected',
+        reasonCode: 'invalid_qr',
+        requiresManualApproval: false
+      });
+    }
   }
 
   if (payload.latitude === undefined || payload.longitude === undefined) {
@@ -159,7 +170,7 @@ export function buildAttendanceAttemptLog(
     longitude: payload.longitude,
     gpsAccuracyM: payload.gpsAccuracyM,
     distanceFromCenterM: decision.distanceFromCenterM,
-    qrTokenSubmitted: payload.qrToken,
+    qrTokenSubmitted: payload.qrToken ?? null,
     verificationResult: decision.verificationResult,
     failureReason: decision.reasonCode,
     deviceUserAgent: payload.deviceUserAgent,

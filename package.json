@@ -7,8 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit",
-    "check": "npm run lint && npm run typecheck",
+    "test": "vitest run",
+    "check:conflicts": "node scripts/check-conflicts.mjs",
+    "resolve:conflicts": "node scripts/resolve-conflicts.mjs",
+    "typecheck": "node scripts/typecheck.mjs",
+    "check": "npm run check:conflicts && npm run lint && npm run typecheck",
     "seed": "node scripts/seed-demo.mjs"
   },
   "dependencies": {
@@ -17,7 +20,7 @@
     "@supabase/supabase-js": "^2.50.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.511.0",
-    "next": "15.2.4",
+    "next": "15.2.8",
     "qrcode": "^1.5.4",
     "react": "19.0.0",
     "react-dom": "19.0.0",
@@ -31,8 +34,10 @@
     "@types/react": "^19.0.12",
     "@types/react-dom": "^19.0.4",
     "eslint": "^9.23.0",
-    "eslint-config-next": "15.2.4",
+    "eslint-config-next": "15.2.8",
     "tailwindcss": "^4.1.3",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^3.2.4"
   }
 }

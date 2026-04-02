@@ -1,6 +1,9 @@
 import type { AuditLogInput } from '@/lib/types';
+import { appendAuditLog } from '@/lib/services/app-data';
 
 export async function writeAuditLog(input: AuditLogInput) {
+  const entry = appendAuditLog(input);
+
   console.info('[audit]', {
     actorProfileId: input.actorProfileId ?? null,
     actionType: input.actionType,
@@ -9,5 +12,5 @@ export async function writeAuditLog(input: AuditLogInput) {
     metadata: input.metadata ?? {}
   });
 
-  return input;
+  return entry;
 }

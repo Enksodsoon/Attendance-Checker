@@ -14,6 +14,18 @@ export interface LineProfile {
   statusMessage?: string;
 }
 
+export interface UserProfile {
+  profileId: string;
+  name: string;
+  email: string;
+  role: AppRole;
+  status: ProfileStatus;
+  lastActiveAt: string;
+  studentId?: string;
+  teacherId?: string;
+  lineUserId?: string;
+}
+
 export interface StudentIdentity {
   profileId: string;
   studentId: string;
@@ -21,6 +33,24 @@ export interface StudentIdentity {
   fullNameTh: string;
   lineUserId: string;
   role: 'student';
+}
+
+export interface StudentRecord {
+  studentId: string;
+  profileId: string;
+  studentCode: string;
+  fullNameTh: string;
+  facultyName: string;
+  departmentName: string;
+  yearLevel: number;
+  status: ProfileStatus;
+  lineUserId?: string;
+}
+
+export interface TeacherRecord {
+  teacherId: string;
+  profileId: string;
+  fullNameTh: string;
 }
 
 export interface RoomLocation {
@@ -157,10 +187,109 @@ export interface TeacherMonitorData {
   roster: TeacherRosterRow[];
 }
 
+export interface TeacherSessionListItem extends SessionSummary {
+  metrics: TeacherMonitorData['metrics'];
+}
+
 export interface AuditLogInput {
   actorProfileId?: string;
   actionType: string;
   entityType: string;
   entityId: string;
   metadata?: Record<string, unknown>;
+}
+
+export interface AdminUserRecord {
+  profileId: string;
+  name: string;
+  email: string;
+  role: AppRole;
+  status: ProfileStatus;
+  lastActiveAt: string;
+  linkedStudentCode?: string;
+}
+
+export interface AdminCourseSection {
+  sectionId: string;
+  courseCode: string;
+  courseNameTh: string;
+  sectionCode: string;
+  semesterLabel: string;
+  teacherProfileId: string;
+  teacherName: string;
+  roomId: string;
+  roomName: string;
+  activeSessionId?: string;
+  enrolledCount: number;
+}
+
+export interface AdminSessionRecord extends SessionSummary {
+  sectionId: string;
+}
+
+export interface AdminRoomRecord {
+  roomId: string;
+  roomName: string;
+  latitude: number;
+  longitude: number;
+  radiusM: number;
+  gpsPolicy: GpsPolicy;
+  activeSessionId?: string;
+}
+
+export interface AdminStudentRecord {
+  studentId: string;
+  profileId: string;
+  studentCode: string;
+  fullNameTh: string;
+  email: string;
+  facultyName: string;
+  departmentName: string;
+  yearLevel: number;
+  status: ProfileStatus;
+  lineUserId?: string;
+  enrolledSectionIds: string[];
+}
+
+export interface EnrollmentRecord {
+  enrollmentId: string;
+  studentId: string;
+  sectionId: string;
+}
+
+export interface ManualApprovalQueueItem {
+  attemptId: string;
+  sessionId: string;
+  studentCode: string;
+  fullNameTh: string;
+  reasonText: string;
+  requestedAt: string;
+  status: ManualApprovalStatus;
+}
+
+export interface AdminAuditLogItem {
+  id: string;
+  occurredAt: string;
+  actorProfileId: string;
+  actorLabel: string;
+  actionType: string;
+  entityType: string;
+  entityId: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface AdminExportItem {
+  id: string;
+  label: string;
+  description: string;
+  href: string;
+}
+
+export interface DemoAccount {
+  profileId: string;
+  name: string;
+  role: AppRole;
+  status: ProfileStatus;
+  email: string;
+  description: string;
 }

@@ -1,28 +1,33 @@
+import type { Route } from 'next';
 import Link from 'next/link';
 import { LiffBootstrap } from '@/components/student/liff-bootstrap';
 import { HistoryList } from '@/components/student/history-list';
 import { Card } from '@/components/ui/card';
 import { StatCard } from '@/components/ui/stat-card';
-import { demoStudentDashboard } from '@/lib/services/demo-data';
+import { requireSessionProfile } from '@/lib/auth/session';
+import { getStudentDashboard } from '@/lib/services/app-data';
 
-export default function LiffHomePage() {
-  const { student, activeSessions, summary, recentHistory } = demoStudentDashboard;
+export const dynamic = 'force-dynamic';
+
+export default async function LiffHomePage() {
+  const profile = await requireSessionProfile(['student']);
+  const { student, activeSessions, summary, recentHistory } = getStudentDashboard(profile.profileId);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-6 px-4 py-6 md:px-6">
-      <LiffBootstrap />
+      <LiffBootstrap student={student} />
 
       <section className="grid gap-4 md:grid-cols-4">
         <StatCard label="มาเรียน" value={String(summary.totalPresent)} helper="ครั้ง" />
         <StatCard label="สาย" value={String(summary.totalLate)} helper="ครั้ง" />
         <StatCard label="รออนุมัติ" value={String(summary.totalPending)} helper="รายการ" />
-        <StatCard label="ขาด" value={String(summary.totalAbsent)} helper="ครั้ง" />
+        <StatCard label="ขาด/ถูกปฏิเสธ" value={String(summary.totalAbsent)} helper="ครั้ง" />
       </section>
 
       <Card>
-        <p className="text-sm text-slate-500">Home dashboard</p>
+        <p className="text-sm text-slate-500">Student dashboard</p>
         <h1 className="mt-2 text-3xl font-bold text-slate-900">สวัสดี {student.fullNameTh}</h1>
-        <p className="mt-2 text-sm text-slate-600">รหัสนักศึกษา {student.studentCode} · บัญชี LINE ถูก bind แล้วในระบบตัวอย่าง</p>
+        <p className="mt-2 text-sm text-slate-600">รหัสนักศึกษา {student.studentCode} · เลือกคาบที่ลงทะเบียนไว้เพื่อเข้า flow เช็กชื่อ</p>
         <div className="mt-5 space-y-4">
           {activeSessions.map((session) => (
             <div key={session.sessionId} className="rounded-2xl border border-slate-200 p-4">
@@ -30,8 +35,9 @@ export default function LiffHomePage() {
                 <div>
                   <p className="font-semibold text-slate-900">{session.courseCode} · {session.courseNameTh}</p>
                   <p className="mt-1 text-sm text-slate-500">ตอน {session.sectionCode} · {session.room.roomName}</p>
+                  <p className="mt-1 text-sm text-slate-500">สถานะ {session.status} · เปิดถึง {new Date(session.window.attendanceCloseAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</p>
                 </div>
-                <Link href="/liff/check-in" className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white">
+                <Link href={`/liff/check-in?sessionId=${session.sessionId}` as Route} className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white">
                   เข้า flow เช็กชื่อ
                 </Link>
               </div>

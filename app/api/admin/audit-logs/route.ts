@@ -1,18 +1,12 @@
 import { NextResponse } from 'next/server';
+import { getSessionProfile } from '@/lib/auth/session';
+import { getAuditLogs } from '@/lib/services/app-data';
 
 export async function GET() {
-  return NextResponse.json({
-    items: [
-      {
-        actor_profile_id: 'profile-admin-1',
-        action_type: 'attendance.override',
-        entity_type: 'attendance_record',
-        entity_id: 'record-1',
-        metadata: {
-          old_status: 'late',
-          new_status: 'excused'
-        }
-      }
-    ]
-  });
+  const actor = await getSessionProfile();
+  if (!actor || !['admin', 'super_admin', 'teacher'].includes(actor.role)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  return NextResponse.json({ items: getAuditLogs() });
 }

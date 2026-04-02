@@ -3,14 +3,14 @@ import { z } from 'zod';
 const envSchema = z.object({
   NEXT_PUBLIC_APP_NAME: z.string().default('Attendance Checker'),
   NEXT_PUBLIC_APP_URL: z.string().url().default('http://localhost:3000'),
-  NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
-  NEXT_PUBLIC_LIFF_ID: z.string().min(1),
-  LINE_CHANNEL_ID: z.string().min(1),
-  LINE_CHANNEL_SECRET: z.string().min(1),
-  LINE_LIFF_BASE_URL: z.string().url(),
-  GPS_MAX_ACCURACY_M: z.coerce.number().default(150),
+  NEXT_PUBLIC_SUPABASE_URL: z.string().url().default('https://local.supabase.co'),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1).default('local-anon-key'),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).default('local-service-role-key'),
+  NEXT_PUBLIC_LIFF_ID: z.string().min(1).default('local-liff-id'),
+  LINE_CHANNEL_ID: z.string().min(1).default('local-line-channel-id'),
+  LINE_CHANNEL_SECRET: z.string().min(1).default('local-line-channel-secret'),
+  LINE_LIFF_BASE_URL: z.string().url().default('http://localhost:3000/liff'),
+  GPS_MAX_ACCURACY_M: z.coerce.number().default(300),
   DEFAULT_GEOFENCE_RADIUS_M: z.coerce.number().default(100),
   MANUAL_APPROVAL_POLICY: z.enum(['pending_if_accuracy_poor', 'reject_if_accuracy_poor']).default('pending_if_accuracy_poor')
 });

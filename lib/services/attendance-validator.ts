@@ -8,6 +8,28 @@ import type {
 } from '@/lib/types';
 import { calculateDistanceMeters } from '@/lib/utils/distance';
 
+
+function hasGpsCoordinates(payload: CheckInPayload): payload is CheckInPayload & { latitude: number; longitude: number } {
+  return payload.latitude !== undefined && payload.longitude !== undefined;
+}
+
+export function resolveCheckInMethod(payload: CheckInPayload): 'qr' | 'gps' | 'hybrid' | 'none' {
+  const hasQr = Boolean(payload.qrToken?.trim());
+  const hasGps = hasGpsCoordinates(payload);
+
+  if (hasQr && hasGps) {
+    return 'hybrid';
+  }
+  if (hasQr) {
+    return 'qr';
+  }
+  if (hasGps) {
+    return 'gps';
+  }
+
+  return 'none';
+}
+
 function isWithinWindow(session: SessionSummary, now: Date) {
   return now >= new Date(session.window.attendanceOpenAt) && now <= new Date(session.window.attendanceCloseAt);
 }
@@ -70,7 +92,18 @@ export function validateAttendanceCheckIn(context: AttendanceValidationContext, 
     });
   }
 
-  if (context.activeQrToken !== payload.qrToken) {
+  const method = resolveCheckInMethod(payload);
+
+  if (method === 'none') {
+    return buildDecision({
+      status: 'pending_approval',
+      verificationResult: 'pending_approval',
+      reasonCode: 'gps_missing',
+      requiresManualApproval: context.session.allowManualApproval
+    });
+  }
+
+  if ((method === 'qr' || method === 'hybrid') && context.activeQrToken !== payload.qrToken) {
     return buildDecision({
       status: 'rejected',
       verificationResult: 'rejected',
@@ -79,12 +112,21 @@ export function validateAttendanceCheckIn(context: AttendanceValidationContext, 
     });
   }
 
-  if (payload.latitude === undefined || payload.longitude === undefined) {
+  if (method === 'qr') {
+    return buildDecision({
+      status: isLate(context.session, now) ? 'late' : 'present',
+      verificationResult: 'accepted',
+      reasonCode: isLate(context.session, now) ? 'ok_late' : 'ok_present',
+      requiresManualApproval: false
+    });
+  }
+
+  if (!hasGpsCoordinates(payload)) {
     return buildDecision({
       status: 'pending_approval',
       verificationResult: 'pending_approval',
       reasonCode: 'gps_missing',
-      requiresManualApproval: true
+      requiresManualApproval: context.session.allowManualApproval
     });
   }
 

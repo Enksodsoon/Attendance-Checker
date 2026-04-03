@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { SESSION_COOKIE } from '@/lib/auth/session';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import { resolveLineAccount } from '@/lib/services/db/student-attendance';
+import { resolveProfileByLineUserId } from '@/lib/services/app-data';
 import { readValidatedJson } from '@/lib/utils/api';
 
 const schema = z.object({
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
   }
 
   const lineUserId = parsed.data.lineUserId;
-  const account = await resolveLineAccount(lineUserId);
+  const account = (await resolveLineAccount(lineUserId)) ?? resolveProfileByLineUserId(lineUserId);
 
   let profileId = account?.profileId;
   let role = account?.role;

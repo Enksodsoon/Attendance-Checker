@@ -1,16 +1,20 @@
-import type { AuditLogInput } from '@/lib/types';
-import { appendAuditLog } from '@/lib/services/app-data';
+import { createSupabaseAdminClient } from '@/lib/supabase/server';
 
-export async function writeAuditLog(input: AuditLogInput) {
-  const entry = appendAuditLog(input);
+interface AuditInput {
+  actorProfileId: string;
+  actionType: string;
+  entityType: string;
+  entityId: string;
+  metadata?: Record<string, unknown>;
+}
 
-  console.info('[audit]', {
-    actorProfileId: input.actorProfileId ?? null,
-    actionType: input.actionType,
-    entityType: input.entityType,
-    entityId: input.entityId,
+export async function writeAuditLog(input: AuditInput) {
+  const admin = createSupabaseAdminClient();
+  await admin.from('system_audit_logs').insert({
+    actor_profile_id: input.actorProfileId,
+    action_type: input.actionType,
+    entity_type: input.entityType,
+    entity_id: input.entityId,
     metadata: input.metadata ?? {}
   });
-
-  return entry;
 }

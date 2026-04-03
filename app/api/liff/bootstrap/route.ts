@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSessionProfile } from '@/lib/auth/session';
-import { getStudentDashboard } from '@/lib/services/app-data';
+import { getStudentDashboard } from '@/lib/services/db/student-attendance';
 
 export async function GET() {
   const actor = await getSessionProfile();
@@ -8,7 +8,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const dashboard = getStudentDashboard(actor.profileId);
+  const dashboard = await getStudentDashboard(actor.profileId);
 
   return NextResponse.json({
     student: dashboard.student,

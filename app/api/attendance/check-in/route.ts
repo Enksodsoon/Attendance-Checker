@@ -1,7 +1,14 @@
+import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { getSessionProfile } from '@/lib/auth/session';
 import { getEnv } from '@/lib/config/env';
-import { getCurrentQrToken, getExistingRecordStatus, getSessionById, isStudentEnrolled, recordCheckInAttempt } from '@/lib/services/app-data';
+import {
+  getCurrentQrToken,
+  getExistingRecordStatus,
+  getSessionById,
+  isStudentEnrolled,
+  recordAttendanceDecision
+} from '@/lib/services/db/student-attendance';
 import { buildAttendanceAttemptLog, validateAttendanceCheckIn } from '@/lib/services/attendance-validator';
 import { writeAuditLog } from '@/lib/services/audit-log';
 import { readValidatedJson } from '@/lib/utils/api';
@@ -20,7 +27,7 @@ export async function POST(request: Request) {
 
   const payload = parsed.data;
   const env = getEnv();
-  const session = getSessionById(payload.sessionId);
+  const session = await getSessionById(payload.sessionId);
 
   if (!session) {
     return NextResponse.json(
@@ -43,28 +50,35 @@ export async function POST(request: Request) {
       studentId: actor.studentId ?? '',
       studentCode: actor.email.split('@')[0] ?? '',
       fullNameTh: actor.name,
-      lineUserId: actor.lineUserId ?? '',
+      lineUserId: '',
       role: 'student' as const
     },
     session,
-    enrollmentConfirmed: isStudentEnrolled(actor.profileId, payload.sessionId),
-    activeQrToken: getCurrentQrToken(payload.sessionId) ?? '',
-    existingRecordStatus: getExistingRecordStatus(actor.profileId, payload.sessionId),
+    enrollmentConfirmed: await isStudentEnrolled(actor.profileId, payload.sessionId),
+    activeQrToken: (await getCurrentQrToken(payload.sessionId)) ?? '',
+    existingRecordStatus: await getExistingRecordStatus(actor.profileId, payload.sessionId),
     maxAccuracyM: env.GPS_MAX_ACCURACY_M,
     defaultRadiusM: env.DEFAULT_GEOFENCE_RADIUS_M,
     manualApprovalPolicy: env.MANUAL_APPROVAL_POLICY
   };
 
   const decision = validateAttendanceCheckIn(context, payload);
-  const attemptId = `attempt-${Date.now()}`;
+  const attemptId = crypto.randomUUID();
   const attemptLog = buildAttendanceAttemptLog(context, payload, decision);
 
-  recordCheckInAttempt({
+  await recordAttendanceDecision({
     profileId: actor.profileId,
     sessionId: payload.sessionId,
     attemptId,
     decision,
-    submittedAt: attemptLog.submittedAt
+    submittedAt: attemptLog.submittedAt,
+    payload: {
+      latitude: payload.latitude,
+      longitude: payload.longitude,
+      gpsAccuracyM: payload.gpsAccuracyM,
+      qrToken: payload.qrToken,
+      deviceUserAgent: payload.deviceUserAgent
+    }
   });
 
   await writeAuditLog({

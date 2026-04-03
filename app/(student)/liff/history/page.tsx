@@ -1,12 +1,12 @@
 import { HistoryList } from '@/components/student/history-list';
 import { requireSessionProfile } from '@/lib/auth/session';
-import { getStudentDashboard } from '@/lib/services/app-data';
+import { getStudentDashboard } from '@/lib/services/db/student-attendance';
 
 export const dynamic = 'force-dynamic';
 
 export default async function LiffHistoryPage() {
   const profile = await requireSessionProfile(['student']);
-  const dashboard = getStudentDashboard(profile.profileId);
+  const dashboard = await getStudentDashboard(profile.profileId);
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col gap-4 px-3 py-4">

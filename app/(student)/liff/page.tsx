@@ -1,6 +1,7 @@
 import { LiffBootstrap } from '@/components/student/liff-bootstrap';
 import { StudentDashboardMobile } from '@/components/student/student-dashboard-mobile';
 import { getSessionProfile } from '@/lib/auth/session';
+import { redirect } from 'next/navigation';
 import { getEnv } from '@/lib/config/env';
 import { getStudentDashboard } from '@/lib/services/db/student-attendance';
 
@@ -9,6 +10,15 @@ export const dynamic = 'force-dynamic';
 export default async function LiffHomePage() {
   const env = getEnv();
   const profile = await getSessionProfile();
+
+
+  if (profile?.role === 'admin' || profile?.role === 'super_admin') {
+    redirect('/admin');
+  }
+
+  if (profile?.role === 'teacher') {
+    redirect('/teacher/sessions');
+  }
 
   if (!profile || profile.role !== 'student') {
     return (

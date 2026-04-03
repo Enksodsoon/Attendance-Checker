@@ -35,7 +35,23 @@ export function LiffBootstrap({ student, liffId }: Readonly<{ student?: StudentI
           body: JSON.stringify({ lineUserId: profile.userId })
         });
 
+        const json = (await response.json()) as { role?: 'student' | 'teacher' | 'admin' | 'super_admin'; error?: string };
+
         if (response.ok) {
+          if (json.role === 'admin' || json.role === 'super_admin') {
+            setStatus('ready');
+            setMessage('เชื่อมต่อสำเร็จ กำลังพาไปหน้าแอดมิน...');
+            router.replace('/admin');
+            return;
+          }
+
+          if (json.role === 'teacher') {
+            setStatus('ready');
+            setMessage('เชื่อมต่อสำเร็จ กำลังพาไปหน้าอาจารย์...');
+            router.replace('/teacher/sessions');
+            return;
+          }
+
           setStatus('ready');
           setMessage('เชื่อมต่อสำเร็จ กำลังโหลดข้อมูลนักศึกษา...');
           router.refresh();
@@ -43,7 +59,7 @@ export function LiffBootstrap({ student, liffId }: Readonly<{ student?: StudentI
         }
 
         setStatus('error');
-        setMessage('บัญชี LINE นี้ยังไม่ถูกผูกกับนักศึกษา กรุณาให้ผู้ดูแลผูกบัญชีในระบบก่อน');
+        setMessage(json.error ?? 'บัญชี LINE นี้ยังไม่ถูกผูกกับนักศึกษา กรุณาให้ผู้ดูแลผูกบัญชีในระบบก่อน');
       } catch (error) {
         setStatus('error');
         setMessage(error instanceof Error ? error.message : 'เชื่อมต่อ LIFF ไม่สำเร็จ');

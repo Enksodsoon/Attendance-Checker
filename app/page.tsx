@@ -20,6 +20,11 @@ export default async function HomePage() {
           {process.env.NODE_ENV !== 'production' ? (
             <Link href="/api/auth/dev-admin-login" className="rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800">DEV: เข้า Admin ทันที</Link>
           ) : null}
+          {process.env.NODE_ENV !== 'production' ? (
+            <p className="w-full text-xs text-amber-700">
+              DEV: ผูก LINE กับแอดมินชั่วคราวได้ที่ <code>/api/auth/dev-admin-login?lineUserId=Uxxxxxxxx</code>
+            </p>
+          ) : null}
         </div>
 
         {currentProfile ? (

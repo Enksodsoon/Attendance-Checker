@@ -1463,6 +1463,11 @@ export function deleteEnrollment(enrollmentId: string) {
 }
 
 
+export function resolveProfileById(profileId: string) {
+  const profile = getState().profiles.find((item) => item.profileId === profileId && item.status === 'active');
+  return profile ? clone(profile) : null;
+}
+
 export function resolveProfileByLineUserId(lineUserId: string) {
   const profile = getState().profiles.find((item) => item.lineUserId === lineUserId && item.status === 'active');
   if (!profile) {

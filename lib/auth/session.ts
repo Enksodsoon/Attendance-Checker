@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type { AppRole, UserProfile } from '@/lib/types';
 import { createSupabaseAdminClient, createSupabaseServerClient } from '@/lib/supabase/server';
+import { resolveProfileById } from '@/lib/services/app-data';
 
 export const SESSION_COOKIE = 'attendance_session';
 export const LINE_ID_COOKIE = 'attendance_line_user_id';
@@ -56,6 +57,11 @@ export async function getSessionProfile() {
     try {
       const parsed = JSON.parse(raw) as SessionPayload;
       if (parsed.profileId) {
+        const localProfile = resolveProfileById(parsed.profileId);
+        if (localProfile && localProfile.status === 'active') {
+          return localProfile;
+        }
+
         const profile = await getProfileById(parsed.profileId);
         if (profile && profile.status === 'active') {
           return profile;

@@ -137,6 +137,7 @@ export async function POST(request: Request) {
   const currentLineUserId = store.get(LINE_ID_COOKIE)?.value;
   const linkedLineUserId = payload.lineUserId?.trim() || currentLineUserId || undefined;
 
+  let syncWarning: string | undefined;
   try {
     await syncLineAccountToSupabase({
       name: payload.name,
@@ -146,7 +147,7 @@ export async function POST(request: Request) {
       lineUserId: linkedLineUserId
     });
   } catch (syncError) {
-    return NextResponse.json({ error: syncError instanceof Error ? syncError.message : 'Cannot link LINE account' }, { status: 409 });
+    syncWarning = syncError instanceof Error ? syncError.message : 'Cannot link LINE account';
   }
 
   const user = addAdminUser({ ...payload, lineUserId: linkedLineUserId });
@@ -159,7 +160,7 @@ export async function POST(request: Request) {
     metadata: payload
   });
 
-  return NextResponse.json({ item: user }, { status: 201 });
+  return NextResponse.json({ item: user, warning: syncWarning }, { status: 201 });
 }
 
 export async function PATCH(request: Request) {
@@ -178,6 +179,7 @@ export async function PATCH(request: Request) {
   const currentLineUserId = store.get(LINE_ID_COOKIE)?.value;
   const linkedLineUserId = payload.lineUserId?.trim() || currentLineUserId || undefined;
 
+  let syncWarning: string | undefined;
   try {
     await syncLineAccountToSupabase({
       name: payload.name,
@@ -187,7 +189,7 @@ export async function PATCH(request: Request) {
       lineUserId: linkedLineUserId
     });
   } catch (syncError) {
-    return NextResponse.json({ error: syncError instanceof Error ? syncError.message : 'Cannot link LINE account' }, { status: 409 });
+    syncWarning = syncError instanceof Error ? syncError.message : 'Cannot link LINE account';
   }
 
   const user = updateAdminUser({ ...payload, lineUserId: linkedLineUserId });
@@ -203,7 +205,7 @@ export async function PATCH(request: Request) {
     metadata: payload
   });
 
-  return NextResponse.json({ item: user });
+  return NextResponse.json({ item: user, warning: syncWarning });
 }
 
 export async function DELETE(request: Request) {

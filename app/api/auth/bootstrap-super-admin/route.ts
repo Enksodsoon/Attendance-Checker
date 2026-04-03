@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { SESSION_COOKIE } from '@/lib/auth/session';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
+import { addAdminUser } from '@/lib/services/app-data';
 
 const schema = z.object({
   secret: z.string().min(1),
@@ -34,13 +35,12 @@ export async function POST(request: Request) {
   }
 
   const admin = createSupabaseAdminClient();
-  const { data: existingOrg, error: existingOrgError } = await admin.from('organizations').select('id').limit(1).maybeSingle();
+  const { data: existingOrg } = await admin.from('organizations').select('id').limit(1).maybeSingle();
 
   let orgId = existingOrg?.id;
-  let bootstrapOrgErrorMessage: string | null = null;
 
   if (!orgId) {
-    const { error: upsertOrgError } = await admin
+    await admin
       .from('organizations')
       .upsert(
         {
@@ -51,36 +51,38 @@ export async function POST(request: Request) {
         { onConflict: 'code' }
       );
 
-    if (upsertOrgError) {
-      bootstrapOrgErrorMessage = upsertOrgError.message;
-    }
-
-    const { data: bootstrapOrg, error: bootstrapOrgLookupError } = await admin
+    const { data: bootstrapOrg } = await admin
       .from('organizations')
       .select('id')
       .eq('code', 'BOOTSTRAP')
       .maybeSingle();
 
-    if (bootstrapOrgLookupError) {
-      bootstrapOrgErrorMessage = bootstrapOrgLookupError.message;
-    }
-
     orgId = bootstrapOrg?.id;
   }
 
   if (!orgId) {
-    return NextResponse.json(
-      {
-        error: 'Bootstrap failed: unable to resolve organization',
-        details: {
-          existingOrgError: existingOrgError?.message ?? null,
-          bootstrapOrgError: bootstrapOrgErrorMessage
-        }
-      },
-      { status: 500 }
-    );
-  }
+    const localUser = addAdminUser({
+      name: parsed.data.fullNameTh,
+      email: parsed.data.email || `bootstrap-${Date.now()}@local.dev`,
+      role: 'super_admin',
+      lineUserId: parsed.data.lineUserId
+    });
 
+    const localStore = await cookies();
+    localStore.set(
+      SESSION_COOKIE,
+      JSON.stringify({ profileId: localUser.profileId, role: 'super_admin' }),
+      {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        path: '/',
+        maxAge: 60 * 60 * 8
+      }
+    );
+
+    return NextResponse.redirect(new URL('/admin?bootstrap=offline-local', request.url));
+  }
 
   let profileId: string;
 

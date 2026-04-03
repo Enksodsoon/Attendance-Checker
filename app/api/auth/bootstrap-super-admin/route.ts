@@ -2,6 +2,8 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { SESSION_COOKIE } from '@/lib/auth/session';
+import { isSecureCookieRequired } from '@/lib/auth/dev-auth';
+import { getSafeNext } from '@/lib/auth/safe-redirect';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import { addAdminUser } from '@/lib/services/app-data';
 
@@ -9,7 +11,8 @@ const schema = z.object({
   secret: z.string().min(1),
   lineUserId: z.string().min(5),
   fullNameTh: z.string().min(2).max(120).optional().or(z.literal('')),
-  email: z.string().email().optional().or(z.literal(''))
+  email: z.string().email().optional().or(z.literal('')),
+  next: z.string().optional().or(z.literal(''))
 });
 
 export async function POST(request: Request) {
@@ -23,7 +26,8 @@ export async function POST(request: Request) {
     secret: form.get('secret'),
     lineUserId: form.get('lineUserId'),
     fullNameTh: form.get('fullNameTh'),
-    email: form.get('email')
+    email: form.get('email'),
+    next: form.get('next')
   });
 
   if (!parsed.success) {
@@ -35,6 +39,7 @@ export async function POST(request: Request) {
   }
 
   const normalizedFullName = parsed.data.fullNameTh?.trim() || 'Super Admin';
+  const nextPath = getSafeNext(parsed.data.next || null, '/admin?bootstrap=1');
 
   const admin = createSupabaseAdminClient();
   const { data: existingOrg } = await admin.from('organizations').select('id').limit(1).maybeSingle();
@@ -77,13 +82,13 @@ export async function POST(request: Request) {
       {
         httpOnly: true,
         sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
+        secure: isSecureCookieRequired(),
         path: '/',
         maxAge: 60 * 60 * 8
       }
     );
 
-    return NextResponse.redirect(new URL('/admin?bootstrap=offline-local', request.url));
+    return NextResponse.redirect(new URL(nextPath, request.url));
   }
 
   let profileId: string;
@@ -160,11 +165,11 @@ export async function POST(request: Request) {
     {
       httpOnly: true,
       sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
+      secure: isSecureCookieRequired(),
       path: '/',
       maxAge: 60 * 60 * 8
     }
   );
 
-  return NextResponse.redirect(new URL('/admin?bootstrap=1', request.url));
+  return NextResponse.redirect(new URL(nextPath, request.url));
 }

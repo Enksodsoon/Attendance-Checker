@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { SESSION_COOKIE } from '@/lib/auth/session';
 import { isDevAuthEnabled, isSecureCookieRequired } from '@/lib/auth/dev-auth';
+import { getSafeNext } from '@/lib/auth/safe-redirect';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 
 function readLineBindingInput(request: Request) {
@@ -24,6 +25,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
+  const url = new URL(request.url);
+  const next = getSafeNext(url.searchParams.get('next'), '/admin');
+
   const admin = createSupabaseAdminClient();
   const { data: profile } = await admin
     .from('profiles')
@@ -35,10 +39,16 @@ export async function GET(request: Request) {
     .maybeSingle();
 
   if (!profile?.id) {
-    return NextResponse.json(
-      { error: 'No active admin/super_admin profile found. Create the first super admin at /register/super-admin' },
-      { status: 404 }
-    );
+    const redirectUrl = new URL('/register/super-admin', request.url);
+    redirectUrl.searchParams.set('reason', 'no-admin');
+    redirectUrl.searchParams.set('next', next);
+
+    const lineUserId = url.searchParams.get('lineUserId')?.trim();
+    if (lineUserId) {
+      redirectUrl.searchParams.set('lineUserId', lineUserId);
+    }
+
+    return NextResponse.redirect(redirectUrl);
   }
 
   const bindingInput = readLineBindingInput(request);
@@ -77,6 +87,7 @@ export async function GET(request: Request) {
     }
   );
 
-  const redirectUrl = new URL('/admin?devLogin=1', request.url);
+  const redirectUrl = new URL(next, request.url);
+  redirectUrl.searchParams.set('devLogin', '1');
   return NextResponse.redirect(redirectUrl);
 }

@@ -26,6 +26,11 @@ export default async function HomePage() {
           ) : null}
           {devAuthEnabled ? (
             <p className="w-full text-xs text-amber-700">
+              DEV: หาก Admin login แจ้งว่าไม่มีแอดมิน ให้สร้าง super admin คนแรกก่อนที่ <code>/register/super-admin</code>
+            </p>
+          ) : null}
+          {devAuthEnabled ? (
+            <p className="w-full text-xs text-amber-700">
               DEV: ผูก LINE กับแอดมินชั่วคราวได้ที่ <code>/api/auth/dev-admin-login?lineUserId=Uxxxxxxxx (ผูก LINE)</code>
             </p>
           ) : null}

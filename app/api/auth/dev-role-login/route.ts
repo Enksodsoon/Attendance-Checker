@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { SESSION_COOKIE } from '@/lib/auth/session';
 import { isDevAuthEnabled, isSecureCookieRequired } from '@/lib/auth/dev-auth';
+import { getSafeNext } from '@/lib/auth/safe-redirect';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 
 type DevRole = 'teacher' | 'admin' | 'super_admin';
@@ -13,6 +14,11 @@ function resolveRole(input: string | null): DevRole {
   return 'admin';
 }
 
+function prefersJson(request: Request) {
+  const accept = request.headers.get('accept')?.toLowerCase() ?? '';
+  return accept.includes('application/json');
+}
+
 export async function GET(request: Request) {
   if (!isDevAuthEnabled()) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -20,7 +26,7 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const role = resolveRole(url.searchParams.get('role'));
-  const redirectPath = url.searchParams.get('next') ?? (role === 'teacher' ? '/teacher/sessions' : '/admin');
+  const redirectPath = getSafeNext(url.searchParams.get('next'), role === 'teacher' ? '/teacher/sessions' : '/admin');
 
   const admin = createSupabaseAdminClient();
 
@@ -35,10 +41,17 @@ export async function GET(request: Request) {
     .maybeSingle();
 
   if (!profile?.id) {
-    return NextResponse.json(
-      { error: `No active ${role} profile found. Create the first super admin at /register/super-admin` },
-      { status: 404 }
-    );
+    if (prefersJson(request)) {
+      return NextResponse.json(
+        { error: `No active ${role} profile found. Create the first super admin at /register/super-admin` },
+        { status: 404 }
+      );
+    }
+
+    const failureUrl = new URL(role === 'teacher' ? '/auth/required' : '/register/super-admin', request.url);
+    failureUrl.searchParams.set('reason', role === 'teacher' ? 'no-teacher' : 'no-admin');
+    failureUrl.searchParams.set('next', redirectPath);
+    return NextResponse.redirect(failureUrl);
   }
 
   const store = await cookies();

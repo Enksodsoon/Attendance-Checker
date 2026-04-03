@@ -15,6 +15,7 @@ export default function AuthRequiredPage() {
               <Link href="/api/auth/dev-role-login?role=admin&next=/admin" className="rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800">DEV: Enter Admin Console</Link>
             </>
           ) : null}
+          <a href="/register/super-admin" className="w-full text-sm text-teal-700 underline underline-offset-4">Need first account? Register super admin first</a>
         </div>
       </section>
     </main>

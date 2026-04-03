@@ -25,6 +25,7 @@ export default async function HomePage() {
               DEV: ผูก LINE กับแอดมินชั่วคราวได้ที่ <code>/api/auth/dev-admin-login?lineUserId=Uxxxxxxxx (ผูก LINE)</code>
             </p>
           ) : null}
+          <a href="/register/super-admin" className="w-full text-xs text-teal-700 underline underline-offset-4">First-time setup: register a super admin account</a>
         </div>
 
         {currentProfile ? (

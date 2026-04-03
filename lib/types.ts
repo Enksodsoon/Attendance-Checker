@@ -207,6 +207,7 @@ export interface AdminUserRecord {
   status: ProfileStatus;
   lastActiveAt: string;
   linkedStudentCode?: string;
+  lineUserId?: string;
 }
 
 export interface AdminCourseSection {

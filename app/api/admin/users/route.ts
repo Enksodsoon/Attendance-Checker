@@ -8,7 +8,8 @@ import { readValidatedJson } from '@/lib/utils/api';
 const schema = z.object({
   name: z.string().min(2).max(120),
   email: z.string().email(),
-  role: z.enum(['student', 'teacher', 'admin', 'super_admin'])
+  role: z.enum(['student', 'teacher', 'admin', 'super_admin']),
+  lineUserId: z.string().min(5).optional().or(z.literal(''))
 });
 
 const updateSchema = schema.extend({

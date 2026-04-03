@@ -899,7 +899,8 @@ export function getAdminUsers() {
       role: profile.role,
       status: profile.status,
       lastActiveAt: profile.lastActiveAt,
-      linkedStudentCode: profile.studentId ? state.students.find((item) => item.studentId === profile.studentId)?.studentCode : undefined
+      linkedStudentCode: profile.studentId ? state.students.find((item) => item.studentId === profile.studentId)?.studentCode : undefined,
+      lineUserId: profile.lineUserId
     }))
   ) as AdminUserRecord[];
 }
@@ -1002,7 +1003,7 @@ export function getAuditLogs() {
   return clone(getState().auditLogs);
 }
 
-export function addAdminUser(input: { name: string; email: string; role: AdminUserRecord['role'] }) {
+export function addAdminUser(input: { name: string; email: string; role: AdminUserRecord['role']; lineUserId?: string }) {
   const state = getState();
   const user: UserProfile = {
     profileId: `profile-${Date.now()}`,
@@ -1010,7 +1011,8 @@ export function addAdminUser(input: { name: string; email: string; role: AdminUs
     email: input.email,
     role: input.role,
     status: 'active',
-    lastActiveAt: nowIso()
+    lastActiveAt: nowIso(),
+    lineUserId: input.lineUserId?.trim() || undefined
   };
 
   state.profiles.unshift(user);
@@ -1024,6 +1026,7 @@ export function updateAdminUser(input: {
   email: string;
   role: AdminUserRecord['role'];
   status: UserProfile['status'];
+  lineUserId?: string;
 }) {
   const state = getState();
   const profile = state.profiles.find((item) => item.profileId === input.profileId);
@@ -1035,6 +1038,7 @@ export function updateAdminUser(input: {
   profile.email = input.email;
   profile.role = input.role;
   profile.status = input.status;
+  profile.lineUserId = input.lineUserId?.trim() || undefined;
 
   if (profile.studentId) {
     const student = state.students.find((item) => item.studentId === profile.studentId);

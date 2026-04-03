@@ -11,11 +11,11 @@ export function UserManagementPanel() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', email: '', role: 'teacher' as AppRole, status: 'active' as AdminUserRecord['status'] });
+  const [form, setForm] = useState({ name: '', email: '', role: 'teacher' as AppRole, status: 'active' as AdminUserRecord['status'], lineUserId: '' });
 
   function resetForm() {
     setEditingProfileId(null);
-    setForm({ name: '', email: '', role: 'teacher', status: 'active' });
+    setForm({ name: '', email: '', role: 'teacher', status: 'active', lineUserId: '' });
   }
 
   async function load() {
@@ -70,7 +70,7 @@ export function UserManagementPanel() {
 
   function startEdit(item: AdminUserRecord) {
     setEditingProfileId(item.profileId);
-    setForm({ name: item.name, email: item.email, role: item.role, status: item.status });
+    setForm({ name: item.name, email: item.email, role: item.role, status: item.status, lineUserId: item.lineUserId ?? '' });
   }
 
   const roleTone = { student: 'slate', teacher: 'teal', admin: 'amber', super_admin: 'red' } as const;
@@ -85,6 +85,7 @@ export function UserManagementPanel() {
         <div className="grid gap-4 md:grid-cols-3">
           <input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="ชื่อผู้ใช้" className="rounded-2xl border border-slate-300 px-4 py-3" />
           <input value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} placeholder="email@university.ac.th" className="rounded-2xl border border-slate-300 px-4 py-3" />
+          <input value={form.lineUserId} onChange={(event) => setForm((current) => ({ ...current, lineUserId: event.target.value }))} placeholder="LINE User ID (Uxxxx)" className="rounded-2xl border border-slate-300 px-4 py-3" />
           <select value={form.role} onChange={(event) => setForm((current) => ({ ...current, role: event.target.value as AppRole }))} className="rounded-2xl border border-slate-300 px-4 py-3">
             <option value="student">student</option>
             <option value="teacher">teacher</option>
@@ -115,13 +116,14 @@ export function UserManagementPanel() {
         <div className="mt-4 overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead>
-              <tr className="text-left text-slate-500"><th className="py-3 pr-4">ชื่อ</th><th className="py-3 pr-4">อีเมล</th><th className="py-3 pr-4">บทบาท</th><th className="py-3 pr-4">รหัสนักศึกษา</th><th className="py-3 pr-4">สถานะ</th><th className="py-3 pr-4">จัดการ</th></tr>
+              <tr className="text-left text-slate-500"><th className="py-3 pr-4">ชื่อ</th><th className="py-3 pr-4">อีเมล</th><th className="py-3 pr-4">LINE ID</th><th className="py-3 pr-4">บทบาท</th><th className="py-3 pr-4">รหัสนักศึกษา</th><th className="py-3 pr-4">สถานะ</th><th className="py-3 pr-4">จัดการ</th></tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {items.map((item) => (
                 <tr key={item.profileId}>
                   <td className="py-3 pr-4 text-slate-900">{item.name}</td>
                   <td className="py-3 pr-4 text-slate-700">{item.email}</td>
+                  <td className="py-3 pr-4 text-slate-700">{item.lineUserId ?? '-'}</td>
                   <td className="py-3 pr-4"><Badge tone={roleTone[item.role]}>{item.role}</Badge></td>
                   <td className="py-3 pr-4 text-slate-700">{item.linkedStudentCode ?? '-'}</td>
                   <td className="py-3 pr-4 text-slate-700">{item.status}</td>

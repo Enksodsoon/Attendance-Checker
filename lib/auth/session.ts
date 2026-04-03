@@ -17,26 +17,34 @@ function mapRole(role: string): AppRole {
   return 'student';
 }
 
-async function getProfileById(profileId: string): Promise<UserProfile | null> {
-  const admin = createSupabaseAdminClient();
-  const { data } = await admin
-    .from('profiles')
-    .select('id, full_name_th, email, role, status, updated_at')
-    .eq('id', profileId)
-    .maybeSingle();
+function canUseOfflineSession() {
+  return process.env.ALLOW_OFFLINE_DEV_SESSION === 'true';
+}
 
-  if (!data) {
+async function getProfileById(profileId: string): Promise<UserProfile | null> {
+  try {
+    const admin = createSupabaseAdminClient();
+    const { data } = await admin
+      .from('profiles')
+      .select('id, full_name_th, email, role, status, updated_at')
+      .eq('id', profileId)
+      .maybeSingle();
+
+    if (!data) {
+      return null;
+    }
+
+    return {
+      profileId: data.id,
+      name: data.full_name_th,
+      email: data.email ?? '',
+      role: mapRole(data.role),
+      status: data.status,
+      lastActiveAt: data.updated_at
+    };
+  } catch {
     return null;
   }
-
-  return {
-    profileId: data.id,
-    name: data.full_name_th,
-    email: data.email ?? '',
-    role: mapRole(data.role),
-    status: data.status,
-    lastActiveAt: data.updated_at
-  };
 }
 
 export async function getSessionProfile() {
@@ -51,16 +59,31 @@ export async function getSessionProfile() {
         if (profile && profile.status === 'active') {
           return profile;
         }
+
+        if (canUseOfflineSession()) {
+          return {
+            profileId: parsed.profileId,
+            name: 'Offline Admin',
+            email: '',
+            role: mapRole(parsed.role),
+            status: 'active',
+            lastActiveAt: new Date().toISOString()
+          } satisfies UserProfile;
+        }
       }
     } catch {
       // ignore invalid cookie payload
     }
   }
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  let user: { id: string; email?: string | null } | null = null;
+  try {
+    const supabase = await createSupabaseServerClient();
+    const result = await supabase.auth.getUser();
+    user = result.data.user;
+  } catch {
+    user = null;
+  }
 
   if (!user) {
     return null;

@@ -16,6 +16,7 @@ export default function AuthRequiredPage() {
             </>
           ) : null}
           <a href="/register/super-admin" className="w-full text-sm text-teal-700 underline underline-offset-4">Need first account? Register super admin first</a>
+          <a href="/register/offline-admin" className="w-full text-sm text-rose-700 underline underline-offset-4">Emergency fallback: offline admin login</a>
         </div>
       </section>
     </main>

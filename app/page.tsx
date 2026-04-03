@@ -26,6 +26,7 @@ export default async function HomePage() {
             </p>
           ) : null}
           <a href="/register/super-admin" className="w-full text-xs text-teal-700 underline underline-offset-4">First-time setup: register a super admin account</a>
+          <a href="/register/offline-admin" className="w-full text-xs text-rose-700 underline underline-offset-4">Emergency fallback: offline admin login</a>
         </div>
 
         {currentProfile ? (

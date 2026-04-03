@@ -3,13 +3,18 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { LINE_ID_COOKIE, SESSION_COOKIE } from '@/lib/auth/session';
 import { isDevAuthEnabled, isSecureCookieRequired } from '@/lib/auth/dev-auth';
-import { createSupabaseAdminClient } from '@/lib/supabase/server';
-import { resolveLineAccount } from '@/lib/services/db/student-attendance';
-import { resolveProfileByLineUserId } from '@/lib/services/app-data';
+import { verifyLineIdentity } from '@/lib/auth/line';
+import { findProfileByLineUserId, updateLineAccountLoginMetadata } from '@/lib/services/db/accounts';
 import { readValidatedJson } from '@/lib/utils/api';
 
 const schema = z.object({
-  lineUserId: z.string().min(5)
+  lineUserId: z.string().min(5).optional(),
+  displayName: z.string().min(1).optional(),
+  pictureUrl: z.string().url().optional(),
+  statusMessage: z.string().optional(),
+  accessToken: z.string().min(10).optional(),
+  idToken: z.string().min(10).optional(),
+  allowDevFallback: z.boolean().optional()
 });
 
 export async function POST(request: Request) {
@@ -18,55 +23,59 @@ export async function POST(request: Request) {
     return parsed.response;
   }
 
-  const lineUserId = parsed.data.lineUserId;
-  const account = (await resolveLineAccount(lineUserId)) ?? resolveProfileByLineUserId(lineUserId);
+  let identity;
+  try {
+    identity = await verifyLineIdentity({
+      accessToken: parsed.data.accessToken,
+      idToken: parsed.data.idToken,
+      claimedLineUserId: parsed.data.lineUserId,
+      claimedDisplayName: parsed.data.displayName,
+      claimedPictureUrl: parsed.data.pictureUrl,
+      claimedStatusMessage: parsed.data.statusMessage
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        status: 'verification_failed',
+        error: error instanceof Error ? error.message : 'LINE verification failed'
+      },
+      { status: 401 }
+    );
+  }
+
+  const account = await findProfileByLineUserId(identity.lineUserId);
 
   let profileId = account?.profileId;
   let role = account?.role;
-  let devAutoBound = false;
+  const devAutoBound = false;
   let offlineFallback = false;
 
-  if (!account) {
+  if (!account && parsed.data.allowDevFallback && isDevAuthEnabled()) {
     if (process.env.ALLOW_OFFLINE_DEV_SESSION === 'true') {
       profileId = 'offline-super-admin';
       role = 'super_admin';
       offlineFallback = true;
-    } else if (isDevAuthEnabled()) {
-      const admin = createSupabaseAdminClient();
-      const { data: devProfile } = await admin
-        .from('profiles')
-        .select('id, role')
-        .in('role', ['super_admin', 'admin'])
-        .eq('status', 'active')
-        .order('role', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (!devProfile?.id) {
-        return NextResponse.json({ error: 'DEV fallback failed: no active admin/super_admin profile available' }, { status: 404 });
-      }
-
-      const { error: bindError } = await admin.from('line_accounts').upsert(
-        {
-          profile_id: devProfile.id,
-          line_user_id: lineUserId,
-          display_name: 'DEV LIFF AUTO-BIND',
-          is_verified: true,
-          last_login_at: new Date().toISOString()
-        },
-        { onConflict: 'profile_id' }
-      );
-
-      if (bindError) {
-        return NextResponse.json({ error: `DEV fallback failed: ${bindError.message}` }, { status: 409 });
-      }
-
-      profileId = devProfile.id;
-      role = devProfile.role;
-      devAutoBound = true;
-    } else {
-      return NextResponse.json({ error: 'LINE account is not linked to student profile' }, { status: 404 });
     }
+  }
+
+  if (!profileId || !role) {
+    return NextResponse.json({
+      status: 'registration_required',
+      identity: {
+        lineUserId: identity.lineUserId,
+        displayName: identity.displayName,
+        pictureUrl: identity.pictureUrl,
+        statusMessage: identity.statusMessage
+      }
+    });
+  }
+
+  if (account) {
+    await updateLineAccountLoginMetadata({
+      lineUserId: identity.lineUserId,
+      displayName: identity.displayName,
+      pictureUrl: identity.pictureUrl
+    });
   }
 
   const store = await cookies();
@@ -82,10 +91,9 @@ export async function POST(request: Request) {
     }
   );
 
-
   store.set(
     LINE_ID_COOKIE,
-    lineUserId,
+    identity.lineUserId,
     {
       httpOnly: true,
       sameSite: 'lax',

@@ -3,19 +3,33 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { initializeLiff } from '@/lib/liff/client';
-import type { StudentIdentity } from '@/lib/types';
+import { LiffRegistrationForm } from '@/components/student/liff-registration-form';
+import type { LineProfile, StudentIdentity } from '@/lib/types';
+
+type SessionResponse = {
+  status?: 'ok' | 'registration_required' | 'verification_failed';
+  role?: 'student' | 'teacher' | 'admin' | 'super_admin';
+  error?: string;
+  identity?: {
+    lineUserId: string;
+    displayName: string;
+    pictureUrl?: string;
+    statusMessage?: string;
+  };
+};
 
 export function LiffBootstrap({ student, liffId }: Readonly<{ student?: StudentIdentity; liffId: string }>) {
   const router = useRouter();
-  const [status, setStatus] = useState<'idle' | 'connecting' | 'ready' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'connecting' | 'signed_in' | 'registration_required' | 'error'>('idle');
   const [message, setMessage] = useState('กำลังเตรียม LIFF');
+  const [lineProfile, setLineProfile] = useState<LineProfile | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     async function bootstrap() {
       if (student) {
-        setStatus('ready');
+        setStatus('signed_in');
         setMessage('เชื่อมต่อบัญชี LINE แล้ว');
         return;
       }
@@ -29,37 +43,52 @@ export function LiffBootstrap({ student, liffId }: Readonly<{ student?: StudentI
           return;
         }
 
+        setLineProfile(profile);
+
         const response = await fetch('/api/liff/session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lineUserId: profile.userId })
+          body: JSON.stringify({
+            lineUserId: profile.userId,
+            displayName: profile.displayName,
+            pictureUrl: profile.pictureUrl,
+            statusMessage: profile.statusMessage,
+            accessToken: profile.accessToken,
+            idToken: profile.idToken
+          })
         });
 
-        const json = (await response.json()) as { role?: 'student' | 'teacher' | 'admin' | 'super_admin'; error?: string };
+        const json = (await response.json()) as SessionResponse;
 
-        if (response.ok) {
-          if (json.role === 'admin' || json.role === 'super_admin') {
-            setStatus('ready');
-            setMessage('เชื่อมต่อสำเร็จ กำลังพาไปหน้าแอดมิน...');
-            router.replace('/admin');
-            return;
-          }
-
-          if (json.role === 'teacher') {
-            setStatus('ready');
-            setMessage('เชื่อมต่อสำเร็จ กำลังพาไปหน้าอาจารย์...');
-            router.replace('/teacher/sessions');
-            return;
-          }
-
-          setStatus('ready');
-          setMessage('เชื่อมต่อสำเร็จ กำลังโหลดข้อมูลนักศึกษา...');
-          router.refresh();
+        if (!response.ok && json.status !== 'registration_required') {
+          setStatus('error');
+          setMessage(json.error ?? 'เชื่อมต่อ LIFF ไม่สำเร็จ กรุณาลองใหม่');
           return;
         }
 
-        setStatus('error');
-        setMessage(json.error ?? 'บัญชี LINE นี้ยังไม่ถูกผูกกับนักศึกษา กรุณาให้ผู้ดูแลผูกบัญชีในระบบก่อน');
+        if (json.status === 'registration_required') {
+          setStatus('registration_required');
+          setMessage('ยังไม่พบบัญชีนักศึกษา กรุณาลงทะเบียนใช้งานครั้งแรก');
+          return;
+        }
+
+        if (json.role === 'admin' || json.role === 'super_admin') {
+          setStatus('signed_in');
+          setMessage('เชื่อมต่อสำเร็จ กำลังพาไปหน้าแอดมิน...');
+          router.replace('/admin');
+          return;
+        }
+
+        if (json.role === 'teacher') {
+          setStatus('signed_in');
+          setMessage('เชื่อมต่อสำเร็จ กำลังพาไปหน้าอาจารย์...');
+          router.replace('/teacher/sessions');
+          return;
+        }
+
+        setStatus('signed_in');
+        setMessage('เชื่อมต่อสำเร็จ กำลังโหลดข้อมูลนักศึกษา...');
+        router.refresh();
       } catch (error) {
         setStatus('error');
         setMessage(error instanceof Error ? error.message : 'เชื่อมต่อ LIFF ไม่สำเร็จ');
@@ -82,7 +111,9 @@ export function LiffBootstrap({ student, liffId }: Readonly<{ student?: StudentI
           <p>LINE User ID: {student.lineUserId || 'ยังไม่ได้ bind'}</p>
         </div>
       ) : null}
-      <p className={`mt-3 rounded-xl px-3 py-2 ${status === 'error' ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'}`}>{message}</p>
+      <p className={`mt-3 rounded-xl px-3 py-2 ${status === 'error' ? 'bg-rose-50 text-rose-700' : status === 'registration_required' ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-700'}`}>{message}</p>
+
+      {status === 'registration_required' && lineProfile ? <div className="mt-4"><LiffRegistrationForm identity={lineProfile} /></div> : null}
     </section>
   );
 }

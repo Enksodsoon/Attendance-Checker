@@ -17,11 +17,15 @@ export async function initializeLiff(liffId: string) {
   }
 
   const profile = await liff.getProfile();
+  const accessToken = liff.getAccessToken() ?? undefined;
+  const idToken = liff.getIDToken() ?? undefined;
   return {
     userId: profile.userId,
     displayName: profile.displayName,
     pictureUrl: profile.pictureUrl,
-    statusMessage: profile.statusMessage
+    statusMessage: profile.statusMessage,
+    accessToken,
+    idToken
   } satisfies LineProfile;
 }
 

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getSessionProfile } from '@/lib/auth/session';
+import { isDevAuthEnabled } from '@/lib/auth/dev-auth';
 
 export default async function AuthRequiredPage({
   searchParams
@@ -9,6 +10,7 @@ export default async function AuthRequiredPage({
   const params = await searchParams;
   const next = params.next;
   const safeNext = next && next.startsWith('/') ? next : null;
+  const devAuthEnabled = isDevAuthEnabled();
 
   if (profile && safeNext) {
     redirect(safeNext);
@@ -19,13 +21,14 @@ export default async function AuthRequiredPage({
       <section className="rounded-3xl border border-[var(--border)] bg-white p-8 shadow-sm">
         <h1 className="text-3xl font-bold text-slate-900">Sign-in required</h1>
         <p className="mt-3 text-slate-600">You need to sign in before opening Teacher or Admin Console.</p>
+        <p className="mt-2 text-sm text-slate-500">First-time setup may require creating the first super admin account.</p>
 
         <div className="mt-6 flex flex-wrap gap-3">
           <Link href="/" className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700">Back to home</Link>
           {safeNext ? (
             <a href={safeNext} className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700">Try target page again</a>
           ) : null}
-          {process.env.NODE_ENV !== 'production' ? (
+          {devAuthEnabled ? (
             <>
               <Link href={`/api/auth/dev-role-login?role=teacher&next=${encodeURIComponent(safeNext || '/teacher/sessions')}`} className="rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800">DEV: Enter Teacher Console</Link>
               <Link href={`/api/auth/dev-role-login?role=admin&next=${encodeURIComponent(safeNext || '/admin')}`} className="rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800">DEV: Enter Admin Console</Link>

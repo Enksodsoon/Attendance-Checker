@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { LINE_ID_COOKIE, SESSION_COOKIE } from '@/lib/auth/session';
+import { isDevAuthEnabled, isSecureCookieRequired } from '@/lib/auth/dev-auth';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import { resolveLineAccount } from '@/lib/services/db/student-attendance';
 import { resolveProfileByLineUserId } from '@/lib/services/app-data';
@@ -30,9 +31,7 @@ export async function POST(request: Request) {
       profileId = 'offline-super-admin';
       role = 'super_admin';
       offlineFallback = true;
-    } else if (process.env.NODE_ENV === 'production') {
-      return NextResponse.json({ error: 'LINE account is not linked to student profile' }, { status: 404 });
-    } else {
+    } else if (isDevAuthEnabled()) {
       const admin = createSupabaseAdminClient();
       const { data: devProfile } = await admin
         .from('profiles')
@@ -65,6 +64,8 @@ export async function POST(request: Request) {
       profileId = devProfile.id;
       role = devProfile.role;
       devAutoBound = true;
+    } else {
+      return NextResponse.json({ error: 'LINE account is not linked to student profile' }, { status: 404 });
     }
   }
 
@@ -75,7 +76,7 @@ export async function POST(request: Request) {
     {
       httpOnly: true,
       sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
+      secure: isSecureCookieRequired(),
       path: '/',
       maxAge: 60 * 60 * 8
     }
@@ -88,7 +89,7 @@ export async function POST(request: Request) {
     {
       httpOnly: true,
       sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
+      secure: isSecureCookieRequired(),
       path: '/',
       maxAge: 60 * 60 * 8
     }

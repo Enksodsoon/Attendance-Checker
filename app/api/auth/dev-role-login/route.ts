@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { SESSION_COOKIE } from '@/lib/auth/session';
+import { isDevAuthEnabled, isSecureCookieRequired } from '@/lib/auth/dev-auth';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 
 type DevRole = 'teacher' | 'admin' | 'super_admin';
@@ -13,8 +14,7 @@ function resolveRole(input: string | null): DevRole {
 }
 
 export async function GET(request: Request) {
-  // DEV-ONLY temporary helper. Remove after full Supabase Auth login flow is in place.
-  if (process.env.NODE_ENV === 'production') {
+  if (!isDevAuthEnabled()) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
@@ -35,7 +35,10 @@ export async function GET(request: Request) {
     .maybeSingle();
 
   if (!profile?.id) {
-    return NextResponse.json({ error: `No active ${role} profile found for dev login` }, { status: 404 });
+    return NextResponse.json(
+      { error: `No active ${role} profile found. Create the first super admin at /register/super-admin` },
+      { status: 404 }
+    );
   }
 
   const store = await cookies();
@@ -45,7 +48,7 @@ export async function GET(request: Request) {
     {
       httpOnly: true,
       sameSite: 'lax',
-      secure: false,
+      secure: isSecureCookieRequired(),
       path: '/',
       maxAge: 60 * 60 * 8
     }

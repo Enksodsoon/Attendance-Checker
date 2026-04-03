@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { SESSION_COOKIE } from '@/lib/auth/session';
+import { isDevAuthEnabled, isSecureCookieRequired } from '@/lib/auth/dev-auth';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 
 function readLineBindingInput(request: Request) {
@@ -19,8 +20,7 @@ function readLineBindingInput(request: Request) {
 }
 
 export async function GET(request: Request) {
-  // DEV-ONLY temporary unblock route. Remove after migrating admin auth fully to Supabase Auth.
-  if (process.env.NODE_ENV === 'production') {
+  if (!isDevAuthEnabled()) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
@@ -35,7 +35,10 @@ export async function GET(request: Request) {
     .maybeSingle();
 
   if (!profile?.id) {
-    return NextResponse.json({ error: 'No active admin/super_admin profile found for dev impersonation' }, { status: 404 });
+    return NextResponse.json(
+      { error: 'No active admin/super_admin profile found. Create the first super admin at /register/super-admin' },
+      { status: 404 }
+    );
   }
 
   const bindingInput = readLineBindingInput(request);
@@ -68,7 +71,7 @@ export async function GET(request: Request) {
     {
       httpOnly: true,
       sameSite: 'lax',
-      secure: false,
+      secure: isSecureCookieRequired(),
       path: '/',
       maxAge: 60 * 60 * 8
     }

@@ -45,6 +45,7 @@ export async function POST(request: Request) {
   let profileId = 'offline-super-admin';
   let role = 'super_admin';
   let lineBound = false;
+  let lineBindFailed = false;
 
   if (lineUserId) {
     try {
@@ -125,6 +126,7 @@ export async function POST(request: Request) {
       profileId = 'offline-super-admin';
       role = 'super_admin';
       lineBound = false;
+      lineBindFailed = true;
     }
   }
 
@@ -141,6 +143,6 @@ export async function POST(request: Request) {
     }
   );
 
-  const redirectUrl = new URL(`/admin?offline=1${lineBound ? '&lineBound=1' : ''}`, request.url);
+  const redirectUrl = new URL(`/admin?offline=1${lineBound ? '&lineBound=1' : ''}${lineBindFailed ? '&lineBound=0' : ''}`, request.url);
   return NextResponse.redirect(redirectUrl);
 }

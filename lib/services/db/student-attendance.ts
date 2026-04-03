@@ -8,31 +8,46 @@ import type {
 } from '@/lib/types';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 
-function mapSession(row: any): SessionSummary {
+type Row = Record<string, unknown>;
+
+function pickFirst<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+  return value ?? null;
+}
+
+function mapSession(rawRow: Row): SessionSummary {
+  const room = pickFirst(rawRow.rooms as Row | Row[] | null);
+  const teacher = pickFirst(rawRow.teachers as Row | Row[] | null);
+  const teacherProfile = pickFirst((teacher?.profiles as Row | Row[] | null) ?? null);
+  const section = pickFirst(rawRow.course_sections as Row | Row[] | null);
+  const course = pickFirst((section?.courses as Row | Row[] | null) ?? null);
+
   return {
-    sessionId: row.id,
-    courseCode: row.course_sections?.courses?.course_code ?? '-',
-    courseNameTh: row.course_sections?.courses?.name_th ?? '-',
-    sectionCode: row.course_sections?.section_code ?? '-',
-    teacherName: row.teachers?.profiles?.full_name_th ?? '-',
+    sessionId: String(rawRow.id ?? ''),
+    courseCode: String(course?.course_code ?? '-'),
+    courseNameTh: String(course?.name_th ?? '-'),
+    sectionCode: String(section?.section_code ?? '-'),
+    teacherName: String(teacherProfile?.full_name_th ?? '-'),
     room: {
-      roomId: row.rooms?.id ?? '',
-      roomName: row.rooms?.name_th ?? '-',
-      latitude: row.rooms?.latitude ?? 0,
-      longitude: row.rooms?.longitude ?? 0,
-      defaultRadiusM: row.rooms?.default_radius_m ?? 100,
-      gpsPolicy: row.rooms?.gps_policy ?? 'allow_manual_approval'
+      roomId: String(room?.id ?? ''),
+      roomName: String(room?.name_th ?? '-'),
+      latitude: Number(room?.latitude ?? 0),
+      longitude: Number(room?.longitude ?? 0),
+      defaultRadiusM: Number(room?.default_radius_m ?? 100),
+      gpsPolicy: (String(room?.gps_policy ?? 'allow_manual_approval') as SessionSummary['room']['gpsPolicy'])
     },
-    status: row.status,
-    verificationMode: row.verification_mode,
-    attendanceMode: row.attendance_mode,
-    allowManualApproval: row.allow_manual_approval,
+    status: String(rawRow.status ?? 'draft') as SessionSummary['status'],
+    verificationMode: String(rawRow.verification_mode ?? 'gps_qr_timewindow') as SessionSummary['verificationMode'],
+    attendanceMode: String(rawRow.attendance_mode ?? 'check_in_only') as SessionSummary['attendanceMode'],
+    allowManualApproval: Boolean(rawRow.allow_manual_approval ?? true),
     window: {
-      scheduledStartAt: row.scheduled_start_at,
-      scheduledEndAt: row.scheduled_end_at,
-      attendanceOpenAt: row.attendance_open_at,
-      lateAfterAt: row.late_after_at,
-      attendanceCloseAt: row.attendance_close_at
+      scheduledStartAt: String(rawRow.scheduled_start_at ?? ''),
+      scheduledEndAt: String(rawRow.scheduled_end_at ?? ''),
+      attendanceOpenAt: String(rawRow.attendance_open_at ?? ''),
+      lateAfterAt: String(rawRow.late_after_at ?? ''),
+      attendanceCloseAt: String(rawRow.attendance_close_at ?? '')
     }
   };
 }
@@ -47,17 +62,15 @@ export async function getStudentIdentityByProfile(profileId: string): Promise<St
 
   if (!data) return null;
 
-  const lineUserId = Array.isArray(data.line_accounts) ? data.line_accounts[0]?.line_user_id ?? '' : '';
-
-  const profileData: any = data.profiles;
-  const fullNameTh = Array.isArray(profileData) ? profileData[0]?.full_name_th : profileData?.full_name_th;
+  const profileData = pickFirst(data.profiles as Row | Row[] | null);
+  const lineAccount = pickFirst(data.line_accounts as Row | Row[] | null);
 
   return {
     profileId,
-    studentId: data.id,
-    studentCode: data.student_code,
-    fullNameTh: fullNameTh ?? '-',
-    lineUserId,
+    studentId: String(data.id),
+    studentCode: String(data.student_code),
+    fullNameTh: String(profileData?.full_name_th ?? '-'),
+    lineUserId: String(lineAccount?.line_user_id ?? ''),
     role: 'student'
   };
 }
@@ -80,7 +93,9 @@ export async function getStudentSessions(profileId: string) {
     `)
     .eq('student_id', identity.studentId);
 
-  const rows = (data ?? []).map((row: any) => row.class_sessions).filter(Boolean);
+  const rows = (data ?? [])
+    .map((row) => pickFirst((row as Row).class_sessions as Row | Row[] | null))
+    .filter((row): row is Row => Boolean(row));
   return rows.map(mapSession);
 }
 
@@ -114,7 +129,7 @@ export async function getSessionById(sessionId: string): Promise<SessionSummary 
     .eq('id', sessionId)
     .maybeSingle();
 
-  return data ? mapSession(data) : null;
+  return data ? mapSession(data as Row) : null;
 }
 
 export async function isStudentEnrolled(profileId: string, sessionId: string): Promise<boolean> {
@@ -144,7 +159,7 @@ export async function getExistingRecordStatus(profileId: string, sessionId: stri
     .eq('student_id', identity.studentId)
     .maybeSingle();
 
-  return data?.status;
+  return data?.status as AttendanceStatus | undefined;
 }
 
 export async function recordAttendanceDecision(params: {
@@ -179,19 +194,24 @@ export async function recordAttendanceDecision(params: {
   if (attemptError) throw attemptError;
 
   if (params.decision.verificationResult === 'accepted' || params.decision.verificationResult === 'pending_approval') {
-    const { error: upsertError } = await admin.from('attendance_records').upsert({
-      class_session_id: params.sessionId,
-      student_id: identity.studentId,
-      status: params.decision.status,
-      verified_by_method: 'gps_qr_timewindow',
-      accepted_attempt_id: params.attemptId,
-      checked_in_at: params.submittedAt,
-      final_latitude: params.payload.latitude,
-      final_longitude: params.payload.longitude,
-      final_accuracy_m: params.payload.gpsAccuracyM,
-      final_distance_m: params.decision.distanceFromCenterM,
-      note: params.decision.reasonCode
-    }, { onConflict: 'class_session_id,student_id' });
+    const { error: upsertError } = await admin
+      .from('attendance_records')
+      .upsert(
+        {
+          class_session_id: params.sessionId,
+          student_id: identity.studentId,
+          status: params.decision.status,
+          verified_by_method: 'gps_qr_timewindow',
+          accepted_attempt_id: params.attemptId,
+          checked_in_at: params.submittedAt,
+          final_latitude: params.payload.latitude,
+          final_longitude: params.payload.longitude,
+          final_accuracy_m: params.payload.gpsAccuracyM,
+          final_distance_m: params.decision.distanceFromCenterM,
+          note: params.decision.reasonCode
+        },
+        { onConflict: 'class_session_id,student_id' }
+      );
 
     if (upsertError) throw upsertError;
   }
@@ -203,10 +223,7 @@ export async function getStudentDashboard(profileId: string): Promise<StudentDas
     throw new Error('Student profile not found');
   }
 
-  const [activeSessions, history] = await Promise.all([
-    getStudentSessions(profileId),
-    getStudentHistory(profileId)
-  ]);
+  const [activeSessions, history] = await Promise.all([getStudentSessions(profileId), getStudentHistory(profileId)]);
 
   const summary = history.reduce(
     (acc, item) => {
@@ -237,7 +254,7 @@ export async function getStudentHistory(profileId: string): Promise<AttendanceHi
     .select(`
       id,status,checked_in_at,note,
       class_sessions!inner(
-        id,scheduled_start_at,
+        id,
         course_sections(section_code,courses(course_code,name_th))
       )
     `)
@@ -245,16 +262,21 @@ export async function getStudentHistory(profileId: string): Promise<AttendanceHi
     .order('checked_in_at', { ascending: false })
     .limit(20);
 
-  return (data ?? []).map((row: any) => {
-    const date = row.checked_in_at ? new Date(row.checked_in_at) : null;
+  return (data ?? []).map((row) => {
+    const typedRow = row as Row;
+    const checkedInAt = typedRow.checked_in_at ? String(typedRow.checked_in_at) : undefined;
+    const session = pickFirst(typedRow.class_sessions as Row | Row[] | null);
+    const section = pickFirst((session?.course_sections as Row | Row[] | null) ?? null);
+    const course = pickFirst((section?.courses as Row | Row[] | null) ?? null);
+
     return {
-      recordId: row.id,
-      sessionId: row.class_sessions.id,
-      dateLabel: date ? date.toLocaleDateString('th-TH') : '-',
-      courseLabel: `${row.class_sessions.course_sections.courses.course_code} · ${row.class_sessions.course_sections.courses.name_th}`,
-      status: row.status,
-      checkedInAt: row.checked_in_at,
-      note: row.note ?? undefined
+      recordId: String(typedRow.id),
+      sessionId: String(session?.id ?? ''),
+      dateLabel: checkedInAt ? new Date(checkedInAt).toLocaleDateString('th-TH') : '-',
+      courseLabel: `${String(course?.course_code ?? '-')} · ${String(course?.name_th ?? '-')}`,
+      status: String(typedRow.status) as AttendanceStatus,
+      checkedInAt,
+      note: typedRow.note ? String(typedRow.note) : undefined
     } satisfies AttendanceHistoryItem;
   });
 }
@@ -266,13 +288,14 @@ export async function resolveLineAccount(lineUserId: string) {
     .select('profile_id, line_user_id, profiles(role, status)')
     .eq('line_user_id', lineUserId)
     .maybeSingle();
-  const profileRow = Array.isArray(data?.profiles) ? data?.profiles[0] : data?.profiles;
-  if (!data || !profileRow || profileRow.status !== 'active') return null;
+
+  const profileRow = pickFirst((data?.profiles as Row | Row[] | null) ?? null);
+  if (!data || !profileRow || String(profileRow.status) !== 'active') return null;
 
   return {
-    profileId: data.profile_id,
-    lineUserId: data.line_user_id,
-    role: mapRole(profileRow.role)
+    profileId: String(data.profile_id),
+    lineUserId: String(data.line_user_id),
+    role: mapRole(String(profileRow.role))
   };
 }
 

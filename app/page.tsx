@@ -17,6 +17,9 @@ export default async function HomePage() {
           <Link href="/liff" className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white">เปิดหน้า LIFF</Link>
           <Link href="/teacher/sessions" className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700">Teacher Console</Link>
           <Link href="/admin" className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700">Admin Console</Link>
+          {process.env.NODE_ENV !== 'production' ? (
+            <Link href="/api/auth/dev-admin-login" className="rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800">DEV: เข้า Admin ทันที</Link>
+          ) : null}
         </div>
 
         {currentProfile ? (

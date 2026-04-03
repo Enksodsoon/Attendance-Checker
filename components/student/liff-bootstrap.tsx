@@ -1,25 +1,72 @@
-import type { StudentIdentity } from '@/lib/types';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+'use client';
 
-export function LiffBootstrap({ student }: Readonly<{ student: StudentIdentity }>) {
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { initializeLiff } from '@/lib/liff/client';
+import type { StudentIdentity } from '@/lib/types';
+
+export function LiffBootstrap({ student, liffId }: Readonly<{ student?: StudentIdentity; liffId: string }>) {
+  const router = useRouter();
+  const [status, setStatus] = useState<'idle' | 'connecting' | 'ready' | 'error'>('idle');
+  const [message, setMessage] = useState('กำลังเตรียม LIFF');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function bootstrap() {
+      if (student) {
+        setStatus('ready');
+        setMessage('เชื่อมต่อบัญชี LINE แล้ว');
+        return;
+      }
+
+      setStatus('connecting');
+      setMessage('กำลังเชื่อมต่อ LINE...');
+
+      try {
+        const profile = await initializeLiff(liffId);
+        if (!profile || cancelled) {
+          return;
+        }
+
+        const response = await fetch('/api/liff/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lineUserId: profile.userId })
+        });
+
+        if (response.ok) {
+          setStatus('ready');
+          setMessage('เชื่อมต่อสำเร็จ กำลังโหลดข้อมูลนักศึกษา...');
+          router.refresh();
+          return;
+        }
+
+        setStatus('error');
+        setMessage('บัญชี LINE นี้ยังไม่ถูกผูกกับนักศึกษา กรุณาให้ผู้ดูแลผูกบัญชีในระบบก่อน');
+      } catch (error) {
+        setStatus('error');
+        setMessage(error instanceof Error ? error.message : 'เชื่อมต่อ LIFF ไม่สำเร็จ');
+      }
+    }
+
+    bootstrap();
+    return () => {
+      cancelled = true;
+    };
+  }, [liffId, router, student]);
+
   return (
-    <Card className="space-y-4">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-sm text-slate-500">LIFF / student identity</p>
-          <h2 className="text-2xl font-semibold text-slate-900">พร้อมใช้งานในบทบาทนักศึกษา</h2>
+    <section className="rounded-3xl border border-slate-200 bg-white p-4 text-sm shadow-sm">
+      <p className="font-semibold text-slate-900">สถานะการเชื่อมต่อ LIFF</p>
+      {student ? (
+        <div className="mt-2 space-y-1 text-slate-600">
+          <p>ชื่อ: {student.fullNameTh}</p>
+          <p>รหัสนักศึกษา: {student.studentCode}</p>
+          <p>LINE User ID: {student.lineUserId || 'ยังไม่ได้ bind'}</p>
         </div>
-        <Badge tone={student.lineUserId ? 'teal' : 'amber'}>{student.lineUserId ? 'LINE bound' : 'ต้อง bind LINE'}</Badge>
-      </div>
-      <p className="text-sm leading-6 text-slate-600">
-        หน้านี้จำลอง session นักศึกษาที่ผูกกับบัญชีในระบบแล้ว จึงสามารถดึงคาบเรียนตามการลงทะเบียนจริงของบัญชีที่เลือกไว้ได้ทันที.
-      </p>
-      <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-700">
-        <p>ชื่อ: {student.fullNameTh}</p>
-        <p>รหัสนักศึกษา: {student.studentCode}</p>
-        <p>LINE User ID: {student.lineUserId || 'ยังไม่ได้ bind'}</p>
-      </div>
-    </Card>
+      ) : null}
+      <p className={`mt-3 rounded-xl px-3 py-2 ${status === 'error' ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'}`}>{message}</p>
+    </section>
   );
 }

@@ -1,5 +1,4 @@
 import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
 import type { AttendanceHistoryItem } from '@/lib/types';
 
 const toneMap = {
@@ -13,11 +12,11 @@ const toneMap = {
 
 export function HistoryList({ items }: Readonly<{ items: AttendanceHistoryItem[] }>) {
   return (
-    <Card>
+    <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-slate-500">History screen</p>
-          <h2 className="text-2xl font-semibold text-slate-900">ประวัติการเช็กชื่อ</h2>
+          <p className="text-sm text-slate-500">ประวัติการเช็กชื่อ</p>
+          <h2 className="text-2xl font-semibold text-slate-900">รายการล่าสุด</h2>
         </div>
       </div>
       <div className="mt-4 space-y-3">
@@ -35,6 +34,6 @@ export function HistoryList({ items }: Readonly<{ items: AttendanceHistoryItem[]
           </div>
         ))}
       </div>
-    </Card>
+    </section>
   );
 }

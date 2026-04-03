@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const attendanceCheckInSchema = z.object({
   sessionId: z.string().min(1),
-  qrToken: z.string().min(1),
+  qrToken: z.string().optional().default(''),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   gpsAccuracyM: z.number().optional(),

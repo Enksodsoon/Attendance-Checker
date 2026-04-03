@@ -7,6 +7,54 @@ import type {
   SessionSummary
 } from '@/lib/types';
 import { calculateDistanceMeters } from '@/lib/utils/distance';
+import { parseQrPayload } from '@/lib/utils/qr';
+
+
+function hasGpsCoordinates(payload: CheckInPayload): payload is CheckInPayload & { latitude: number; longitude: number } {
+  return payload.latitude !== undefined && payload.longitude !== undefined;
+}
+
+
+export function resolveSubmittedQrToken(rawQrToken: string | undefined): string {
+  const trimmed = rawQrToken?.trim() ?? '';
+  if (!trimmed) {
+    return '';
+  }
+
+  const payload = parseQrPayload(trimmed);
+  if (payload?.token) {
+    return payload.token;
+  }
+
+  try {
+    const url = new URL(trimmed);
+    const token = url.searchParams.get('token');
+    if (token?.trim()) {
+      return token.trim();
+    }
+  } catch {
+    // Not a URL; treat as raw token.
+  }
+
+  return trimmed;
+}
+
+export function resolveCheckInMethod(payload: CheckInPayload): 'qr' | 'gps' | 'hybrid' | 'none' {
+  const hasQr = Boolean(resolveSubmittedQrToken(payload.qrToken));
+  const hasGps = hasGpsCoordinates(payload);
+
+  if (hasQr && hasGps) {
+    return 'hybrid';
+  }
+  if (hasQr) {
+    return 'qr';
+  }
+  if (hasGps) {
+    return 'gps';
+  }
+
+  return 'none';
+}
 
 function isWithinWindow(session: SessionSummary, now: Date) {
   return now >= new Date(session.window.attendanceOpenAt) && now <= new Date(session.window.attendanceCloseAt);
@@ -70,7 +118,19 @@ export function validateAttendanceCheckIn(context: AttendanceValidationContext, 
     });
   }
 
-  if (context.activeQrToken !== payload.qrToken) {
+  const resolvedQrToken = resolveSubmittedQrToken(payload.qrToken);
+  const method = resolveCheckInMethod({ ...payload, qrToken: resolvedQrToken });
+
+  if (method === 'none') {
+    return buildDecision({
+      status: 'pending_approval',
+      verificationResult: 'pending_approval',
+      reasonCode: 'gps_missing',
+      requiresManualApproval: context.session.allowManualApproval
+    });
+  }
+
+  if ((method === 'qr' || method === 'hybrid') && context.activeQrToken !== resolvedQrToken) {
     return buildDecision({
       status: 'rejected',
       verificationResult: 'rejected',
@@ -79,12 +139,21 @@ export function validateAttendanceCheckIn(context: AttendanceValidationContext, 
     });
   }
 
-  if (payload.latitude === undefined || payload.longitude === undefined) {
+  if (method === 'qr') {
+    return buildDecision({
+      status: isLate(context.session, now) ? 'late' : 'present',
+      verificationResult: 'accepted',
+      reasonCode: isLate(context.session, now) ? 'ok_late' : 'ok_present',
+      requiresManualApproval: false
+    });
+  }
+
+  if (!hasGpsCoordinates(payload)) {
     return buildDecision({
       status: 'pending_approval',
       verificationResult: 'pending_approval',
       reasonCode: 'gps_missing',
-      requiresManualApproval: true
+      requiresManualApproval: context.session.allowManualApproval
     });
   }
 
@@ -159,7 +228,7 @@ export function buildAttendanceAttemptLog(
     longitude: payload.longitude,
     gpsAccuracyM: payload.gpsAccuracyM,
     distanceFromCenterM: decision.distanceFromCenterM,
-    qrTokenSubmitted: payload.qrToken,
+    qrTokenSubmitted: resolveSubmittedQrToken(payload.qrToken),
     verificationResult: decision.verificationResult,
     failureReason: decision.reasonCode,
     deviceUserAgent: payload.deviceUserAgent,

@@ -1,10 +1,11 @@
 'use client';
 
 import type { ChangeEvent, FormEvent } from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
+import { initializeLiff } from '@/lib/liff/client';
 import type { StudentIdentity } from '@/lib/types';
 
 type BindState = {
@@ -26,6 +27,20 @@ export function BindForm({ student }: Readonly<{ student: StudentIdentity }>) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<BindResponse | null>(null);
+  const [lineUserId, setLineUserId] = useState(student.lineUserId || '');
+
+  useEffect(() => {
+    async function loadLine() {
+      const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+      if (!liffId) return;
+      const profile = await initializeLiff(liffId);
+      if (profile?.userId) {
+        setLineUserId(profile.userId);
+      }
+    }
+
+    loadLine().catch(() => {});
+  }, []);
 
   function updateField(key: keyof BindState, event: ChangeEvent<HTMLInputElement>) {
     setForm((current) => ({ ...current, [key]: event.target.value }));
@@ -40,7 +55,7 @@ export function BindForm({ student }: Readonly<{ student: StudentIdentity }>) {
       const response = await fetch('/api/student/bind', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify({ ...form, lineUserId })
       });
 
       const payload = (await response.json()) as BindResponse & { error?: string };
@@ -59,11 +74,9 @@ export function BindForm({ student }: Readonly<{ student: StudentIdentity }>) {
 
   return (
     <Card>
-      <p className="text-sm text-slate-500">First-time binding</p>
+      <p className="text-sm text-slate-500">LINE account binding</p>
       <h1 className="mt-2 text-3xl font-bold text-slate-900">ผูก LINE กับรหัสนักศึกษา</h1>
-      <p className="mt-3 text-sm leading-6 text-slate-600">
-        เวอร์ชันนี้ผูกข้อมูลกับบัญชีนักศึกษาที่ล็อกอินอยู่จริงในระบบเดโม เพื่อให้หน้า LIFF ดึงข้อมูลตามการลงทะเบียนของคนนั้นได้ทันที.
-      </p>
+      <p className="mt-3 text-sm leading-6 text-slate-600">ระบบจะบันทึก line_user_id ลงฐานข้อมูลจริงเพื่อใช้ยืนยันตัวตนเข้า LIFF</p>
 
       <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
         <label className="block text-sm font-medium text-slate-700">
@@ -83,6 +96,10 @@ export function BindForm({ student }: Readonly<{ student: StudentIdentity }>) {
             className="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3"
             placeholder="สมชาย ใจดี"
           />
+        </label>
+        <label className="block text-sm font-medium text-slate-700">
+          LINE User ID
+          <input value={lineUserId} onChange={(event) => setLineUserId(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" />
         </label>
         <button type="submit" className="inline-flex min-w-44 items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white">
           {submitting ? 'กำลังผูกบัญชี...' : 'ยืนยันการผูกบัญชี'}

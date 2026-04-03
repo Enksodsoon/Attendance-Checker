@@ -1,8 +1,9 @@
+import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { SESSION_COOKIE } from '@/lib/auth/session';
 
 export async function POST() {
-  const response = NextResponse.json({ status: 'ok' });
-  response.cookies.set(SESSION_COOKIE, '', { httpOnly: true, sameSite: 'lax', path: '/', maxAge: 0 });
-  return response;
+  const store = await cookies();
+  store.delete(SESSION_COOKIE);
+  return NextResponse.json({ status: 'ok' });
 }

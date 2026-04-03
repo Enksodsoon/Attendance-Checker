@@ -4,7 +4,6 @@ import type { ChangeEvent } from 'react';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card } from '@/components/ui/card';
 import type { AttendanceDecision, CheckInPayload, SessionSummary } from '@/lib/types';
 
 type GeoState =
@@ -70,26 +69,19 @@ export function CheckInForm({
     setQrToken(initialQrToken);
   }, [initialQrToken, session.sessionId]);
 
-  useEffect(() => {
-    return () => {
-      stopScanner();
-    };
-  }, []);
+  useEffect(() => () => stopScanner(), []);
 
   const helperText = useMemo(() => {
     if (geoState.status === 'ready') {
-      return `ตำแหน่งพร้อมแล้ว · accuracy ${Math.round(geoState.accuracy)} ม.`;
+      return `พร้อมใช้งาน · accuracy ${Math.round(geoState.accuracy)} ม.`;
     }
-
     if (geoState.status === 'error') {
       return geoState.message;
     }
-
     if (geoState.status === 'loading') {
       return 'กำลังร้องขอพิกัดจากอุปกรณ์...';
     }
-
-    return 'กรุณาอนุญาต GPS ก่อนสแกน QR';
+    return 'กรุณาอนุญาต GPS ก่อนกดเช็กชื่อด้วย GPS';
   }, [geoState]);
 
   function stopScanner() {
@@ -114,7 +106,7 @@ export function CheckInForm({
     }
     if (!window.BarcodeDetector) {
       setScannerStatus('unsupported');
-      setScannerMessage('เบราว์เซอร์นี้ยังไม่รองรับ BarcodeDetector ให้ใช้ manual token แทน');
+      setScannerMessage('เบราว์เซอร์นี้ยังไม่รองรับ BarcodeDetector ให้วาง token ด้านล่างแทน');
       return;
     }
 
@@ -144,7 +136,6 @@ export function CheckInForm({
         }
       }, 700);
     } catch (scanError) {
-      console.error(scanError);
       setScannerStatus('error');
       setScannerMessage(scanError instanceof Error ? scanError.message : 'เปิดกล้องไม่สำเร็จ');
       stopScanner();
@@ -174,7 +165,7 @@ export function CheckInForm({
     );
   }
 
-  async function handleSubmit() {
+  async function submitCheckIn(method: 'qr' | 'gps') {
     setSubmitting(true);
     setErrorMessage(null);
     setManualStatus(null);
@@ -182,7 +173,7 @@ export function CheckInForm({
     try {
       const payload: CheckInPayload = {
         sessionId: session.sessionId,
-        qrToken,
+        qrToken: method === 'gps' ? '' : qrToken,
         latitude: geoState.status === 'ready' ? geoState.latitude : undefined,
         longitude: geoState.status === 'ready' ? geoState.longitude : undefined,
         gpsAccuracyM: geoState.status === 'ready' ? geoState.accuracy : undefined,
@@ -203,9 +194,6 @@ export function CheckInForm({
 
       setDecision(json.decision);
       setAttemptId(json.attemptId);
-      if (json.decision.verificationResult === 'accepted') {
-        setManualStatus('เช็กชื่อสำเร็จแล้ว รายการนี้จะปรากฏในหน้า history และ live monitor ทันที');
-      }
       router.refresh();
     } catch (submitError) {
       setErrorMessage(submitError instanceof Error ? submitError.message : 'ส่งข้อมูลเช็กชื่อไม่สำเร็จ');
@@ -234,12 +222,12 @@ export function CheckInForm({
         })
       });
 
-      const payload = (await response.json()) as { status?: string; error?: string };
+      const payload = (await response.json()) as { error?: string };
       if (!response.ok) {
         throw new Error(payload.error ?? 'ส่งคำร้องไม่สำเร็จ');
       }
 
-      setManualStatus('ส่งคำร้อง manual approval สำเร็จแล้ว รายการนี้จะไปอยู่ในหน้า teacher/admin queue');
+      setManualStatus('ส่งคำร้อง manual approval สำเร็จแล้ว');
       router.refresh();
     } catch (manualError) {
       setManualStatus(manualError instanceof Error ? manualError.message : 'ส่งคำร้องไม่สำเร็จ');
@@ -249,18 +237,15 @@ export function CheckInForm({
   }
 
   return (
-    <Card className="space-y-4">
+    <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
       <div>
-        <p className="text-sm text-slate-500">Session detail / eligibility</p>
-        <h2 className="text-2xl font-semibold text-slate-900">{session.courseCode} · {session.courseNameTh}</h2>
-        <p className="mt-2 text-sm text-slate-600">
-          ห้อง {session.room.roomName} · ปิดเช็กชื่อ{' '}
-          {new Date(session.window.attendanceCloseAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
-        </p>
+        <p className="text-sm text-slate-500">บันทึกเวลาเข้าเรียนด้วย QR หรือ GPS</p>
+        <h2 className="text-2xl font-bold text-indigo-700">{session.courseCode} · {session.courseNameTh}</h2>
+        <p className="text-sm text-slate-600">ตอน {session.sectionCode} · ห้อง {session.room.roomName}</p>
       </div>
 
       <label className="block text-sm font-medium text-slate-700">
-        เลือกคาบเรียนที่ต้องการเช็กชื่อ
+        เลือกคาบเรียน
         <select
           value={session.sessionId}
           onChange={(event) => router.push(`/liff/check-in?sessionId=${event.target.value}`)}
@@ -274,93 +259,85 @@ export function CheckInForm({
         </select>
       </label>
 
-      <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-700">
-        <p className="font-medium">Permission screen</p>
+      <div className="rounded-2xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800">
+        <p className="font-semibold">ข้อมูลการเข้าถึงตำแหน่ง</p>
         <p className="mt-1">{helperText}</p>
-        <button onClick={requestLocation} className="mt-3 inline-flex min-w-44 items-center justify-center rounded-full bg-teal-600 px-4 py-2 font-medium text-white">
-          ขอสิทธิ์ตำแหน่ง
+        <button onClick={requestLocation} className="mt-3 rounded-xl bg-sky-600 px-4 py-2 font-semibold text-white">
+          อนุญาตตำแหน่ง
         </button>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-medium text-slate-900">สแกน QR ด้วยกล้อง</p>
-            <p className="mt-1 text-sm text-slate-600">ถ้าเบราว์เซอร์รองรับ BarcodeDetector ระบบจะอ่าน token ให้โดยอัตโนมัติ</p>
-          </div>
-          <div className="flex gap-2">
-            <button type="button" onClick={startScanner} className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white">
-              เปิดกล้องสแกน
-            </button>
-            <button type="button" onClick={stopScanner} className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700">
-              ปิดกล้อง
-            </button>
+      <div className="rounded-2xl border border-slate-200 p-3">
+        <div className="flex items-center justify-between">
+          <p className="font-semibold text-slate-900">สแกน QR</p>
+          <div className="space-x-2">
+            <button type="button" onClick={startScanner} className="rounded-xl bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white">เปิดกล้อง</button>
+            <button type="button" onClick={stopScanner} className="rounded-xl border border-slate-300 px-3 py-1.5 text-sm font-medium">ปิด</button>
           </div>
         </div>
-        <p className="mt-2 text-sm text-slate-500">สถานะสแกนเนอร์: {scannerStatus} · {scannerMessage}</p>
-        <video ref={videoRef} className="mt-3 aspect-video w-full rounded-2xl bg-slate-950 object-cover" muted playsInline />
+        <p className="mt-1 text-xs text-slate-500">{scannerStatus} · {scannerMessage}</p>
+        <video ref={videoRef} className="mt-2 aspect-video w-full rounded-2xl bg-slate-900 object-cover" muted playsInline />
       </div>
 
       <label className="block text-sm font-medium text-slate-700">
-        QR token ที่สแกนได้
+        QR token
         <input
           value={qrToken}
           onChange={(event: ChangeEvent<HTMLInputElement>) => setQrToken(event.target.value)}
           className="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3"
-          placeholder="วาง token หรือ payload ที่สแกนได้"
+          placeholder="วาง token ที่ได้จาก QR"
         />
       </label>
+
+      <div className="grid grid-cols-2 gap-3">
+        <button
+          onClick={() => submitCheckIn('qr')}
+          disabled={submitting}
+          className="rounded-2xl bg-emerald-500 px-4 py-3 text-lg font-semibold text-white disabled:opacity-60"
+        >
+          เช็กชื่อด้วย QR
+        </button>
+        <button
+          onClick={() => submitCheckIn('gps')}
+          disabled={submitting || geoState.status !== 'ready'}
+          className="rounded-2xl border-2 border-rose-300 bg-rose-50 px-4 py-3 text-lg font-semibold text-rose-600 disabled:opacity-60"
+        >
+          เช็กชื่อด้วย GPS
+        </button>
+      </div>
 
       <label className="block text-sm font-medium text-slate-700">
         เหตุผลขอ manual approval (ถ้ามี)
         <textarea
           value={manualReason}
           onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setManualReason(event.target.value)}
-          className="mt-2 min-h-24 w-full rounded-2xl border border-slate-300 px-4 py-3"
+          className="mt-2 min-h-20 w-full rounded-2xl border border-slate-300 px-4 py-3"
           placeholder="เช่น GPS ในอาคารคลาดเคลื่อนมาก"
         />
       </label>
 
-      <button
-        onClick={handleSubmit}
-        disabled={submitting}
-        className="inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white disabled:opacity-60"
-      >
-        {submitting ? 'กำลังตรวจสอบ...' : 'ส่งข้อมูลเช็กชื่อ'}
-      </button>
-
       {errorMessage ? <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{errorMessage}</p> : null}
 
       {decision ? (
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-          <p className="font-semibold text-slate-900">Live validation result</p>
-          <p className="mt-2">ผลลัพธ์: {decision.status}</p>
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
+          <p className="font-semibold text-slate-900">ผลการตรวจสอบ</p>
+          <p className="mt-1">สถานะ: {decision.status}</p>
           <p>{decisionMessageMap[decision.reasonCode]}</p>
-          <p>verificationResult: {decision.verificationResult}</p>
+          <p>ผลระบบ: {decision.verificationResult}</p>
           {decision.distanceFromCenterM !== undefined ? <p>ระยะจากห้อง: {decision.distanceFromCenterM.toFixed(1)} เมตร</p> : null}
-          {decision.finalAccuracyM !== undefined ? <p>accuracy: {decision.finalAccuracyM.toFixed(1)} เมตร</p> : null}
 
-          <div className="mt-4 flex flex-wrap gap-3">
-            <Link href="/liff" className="rounded-full bg-emerald-700 px-4 py-2 font-medium text-white">
-              กลับหน้า Home
-            </Link>
-            <Link href="/liff/history" className="rounded-full border border-slate-300 px-4 py-2 font-medium text-slate-700">
-              ดูประวัติการเช็กชื่อ
-            </Link>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link href="/liff" className="rounded-xl bg-indigo-600 px-3 py-2 font-medium text-white">กลับหน้าหลัก</Link>
+            <Link href="/liff/history" className="rounded-xl border border-slate-300 px-3 py-2 font-medium">ดูประวัติ</Link>
             {decision.requiresManualApproval ? (
-              <button
-                onClick={handleManualApproval}
-                disabled={manualSubmitting}
-                className="rounded-full bg-amber-500 px-4 py-2 font-medium text-white disabled:opacity-60"
-              >
-                {manualSubmitting ? 'กำลังส่งคำร้อง...' : 'ส่งคำร้อง Manual Approval'}
+              <button onClick={handleManualApproval} disabled={manualSubmitting} className="rounded-xl bg-amber-500 px-3 py-2 font-medium text-white disabled:opacity-60">
+                {manualSubmitting ? 'กำลังส่ง...' : 'ส่งคำร้องอาจารย์'}
               </button>
             ) : null}
           </div>
-
-          {manualStatus ? <p className="mt-3 rounded-2xl bg-amber-50 px-4 py-3 text-amber-800">{manualStatus}</p> : null}
+          {manualStatus ? <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-amber-700">{manualStatus}</p> : null}
         </div>
       ) : null}
-    </Card>
+    </section>
   );
 }

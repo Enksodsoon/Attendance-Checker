@@ -34,9 +34,25 @@ export async function POST(request: Request) {
   }
 
   const admin = createSupabaseAdminClient();
-  const { data: org } = await admin.from('organizations').select('id').limit(1).maybeSingle();
-  if (!org?.id) {
-    return NextResponse.json({ error: 'No organization found' }, { status: 500 });
+  const { data: existingOrg } = await admin.from('organizations').select('id').limit(1).maybeSingle();
+
+  const orgId = existingOrg?.id ?? (
+    await admin
+      .from('organizations')
+      .upsert(
+        {
+          code: 'BOOTSTRAP',
+          name_th: 'Bootstrap Organization',
+          name_en: 'Bootstrap Organization'
+        },
+        { onConflict: 'code' }
+      )
+      .select('id')
+      .single()
+  ).data?.id;
+
+  if (!orgId) {
+    return NextResponse.json({ error: 'Bootstrap failed: unable to resolve organization' }, { status: 500 });
   }
 
   let profileId: string;
@@ -66,7 +82,7 @@ export async function POST(request: Request) {
     const { data: createdProfile, error: profileError } = await admin
       .from('profiles')
       .insert({
-        organization_id: org.id,
+        organization_id: orgId,
         full_name_th: parsed.data.fullNameTh,
         email: parsed.data.email || null,
         role: 'super_admin',

@@ -18,7 +18,7 @@ export default function SuperAdminBootstrapPage() {
           </label>
           <label className="grid gap-1 text-sm">
             <span>Full name (TH)</span>
-            <input name="fullNameTh" type="text" required className="rounded-xl border border-slate-300 px-3 py-2" />
+            <input name="fullNameTh" type="text" className="rounded-xl border border-slate-300 px-3 py-2" placeholder="optional" />
           </label>
           <label className="grid gap-1 text-sm">
             <span>Email (optional)</span>

@@ -8,7 +8,7 @@ import { addAdminUser } from '@/lib/services/app-data';
 const schema = z.object({
   secret: z.string().min(1),
   lineUserId: z.string().min(5),
-  fullNameTh: z.string().min(2).max(120),
+  fullNameTh: z.string().min(2).max(120).optional().or(z.literal('')),
   email: z.string().email().optional().or(z.literal(''))
 });
 
@@ -33,6 +33,8 @@ export async function POST(request: Request) {
   if (parsed.data.secret !== expectedSecret) {
     return NextResponse.json({ error: 'Invalid bootstrap secret' }, { status: 401 });
   }
+
+  const normalizedFullName = parsed.data.fullNameTh?.trim() || 'Super Admin';
 
   const admin = createSupabaseAdminClient();
   const { data: existingOrg } = await admin.from('organizations').select('id').limit(1).maybeSingle();
@@ -62,7 +64,7 @@ export async function POST(request: Request) {
 
   if (!orgId) {
     const localUser = addAdminUser({
-      name: parsed.data.fullNameTh,
+      name: normalizedFullName,
       email: parsed.data.email || `bootstrap-${Date.now()}@local.dev`,
       role: 'super_admin',
       lineUserId: parsed.data.lineUserId
@@ -112,7 +114,7 @@ export async function POST(request: Request) {
       .from('profiles')
       .insert({
         organization_id: orgId,
-        full_name_th: parsed.data.fullNameTh,
+        full_name_th: normalizedFullName,
         email: parsed.data.email || null,
         role: 'super_admin',
         status: 'active',
@@ -140,7 +142,7 @@ export async function POST(request: Request) {
     {
       profile_id: profileId,
       line_user_id: parsed.data.lineUserId,
-      display_name: parsed.data.fullNameTh,
+      display_name: normalizedFullName,
       is_verified: true,
       last_login_at: new Date().toISOString()
     },

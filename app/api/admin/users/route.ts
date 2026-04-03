@@ -1,6 +1,7 @@
+import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getSessionProfile } from '@/lib/auth/session';
+import { LINE_ID_COOKIE, getSessionProfile } from '@/lib/auth/session';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import { addAdminUser, deleteAdminUser, getAdminUsers, updateAdminUser } from '@/lib/services/app-data';
 import { writeAuditLog } from '@/lib/services/audit-log';
@@ -132,6 +133,9 @@ export async function POST(request: Request) {
   }
 
   const payload = parsed.data;
+  const store = await cookies();
+  const currentLineUserId = store.get(LINE_ID_COOKIE)?.value;
+  const linkedLineUserId = payload.lineUserId?.trim() || currentLineUserId || undefined;
 
   try {
     await syncLineAccountToSupabase({
@@ -139,13 +143,13 @@ export async function POST(request: Request) {
       email: payload.email,
       role: payload.role,
       status: payload.status ?? 'active',
-      lineUserId: payload.lineUserId
+      lineUserId: linkedLineUserId
     });
   } catch (syncError) {
     return NextResponse.json({ error: syncError instanceof Error ? syncError.message : 'Cannot link LINE account' }, { status: 409 });
   }
 
-  const user = addAdminUser(payload);
+  const user = addAdminUser({ ...payload, lineUserId: linkedLineUserId });
 
   await writeAuditLog({
     actorProfileId: actor.profileId,
@@ -170,6 +174,9 @@ export async function PATCH(request: Request) {
   }
 
   const payload = parsed.data;
+  const store = await cookies();
+  const currentLineUserId = store.get(LINE_ID_COOKIE)?.value;
+  const linkedLineUserId = payload.lineUserId?.trim() || currentLineUserId || undefined;
 
   try {
     await syncLineAccountToSupabase({
@@ -177,13 +184,13 @@ export async function PATCH(request: Request) {
       email: payload.email,
       role: payload.role,
       status: payload.status,
-      lineUserId: payload.lineUserId
+      lineUserId: linkedLineUserId
     });
   } catch (syncError) {
     return NextResponse.json({ error: syncError instanceof Error ? syncError.message : 'Cannot link LINE account' }, { status: 409 });
   }
 
-  const user = updateAdminUser(payload);
+  const user = updateAdminUser({ ...payload, lineUserId: linkedLineUserId });
   if (!user) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }

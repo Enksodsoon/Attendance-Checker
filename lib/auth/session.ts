@@ -4,6 +4,7 @@ import type { AppRole, UserProfile } from '@/lib/types';
 import { createSupabaseAdminClient, createSupabaseServerClient } from '@/lib/supabase/server';
 
 export const SESSION_COOKIE = 'attendance_session';
+export const LINE_ID_COOKIE = 'attendance_line_user_id';
 
 interface SessionPayload {
   profileId: string;

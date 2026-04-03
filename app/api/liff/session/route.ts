@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { SESSION_COOKIE } from '@/lib/auth/session';
+import { LINE_ID_COOKIE, SESSION_COOKIE } from '@/lib/auth/session';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import { resolveLineAccount } from '@/lib/services/db/student-attendance';
 import { resolveProfileByLineUserId } from '@/lib/services/app-data';
@@ -72,6 +72,19 @@ export async function POST(request: Request) {
   store.set(
     SESSION_COOKIE,
     JSON.stringify({ profileId, role }),
+    {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: 60 * 60 * 8
+    }
+  );
+
+
+  store.set(
+    LINE_ID_COOKIE,
+    lineUserId,
     {
       httpOnly: true,
       sameSite: 'lax',

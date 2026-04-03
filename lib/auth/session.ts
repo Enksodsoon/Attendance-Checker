@@ -92,11 +92,11 @@ export async function getSessionProfile() {
 export async function requireSessionProfile(roles?: AppRole[]) {
   const profile = await getSessionProfile();
   if (!profile) {
-    redirect('/?auth=required');
+    redirect('/auth/required');
   }
 
   if (roles && !roles.includes(profile.role)) {
-    redirect('/?auth=forbidden');
+    redirect('/auth/forbidden');
   }
 
   return profile;

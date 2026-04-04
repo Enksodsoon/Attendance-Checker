@@ -68,6 +68,18 @@ export function UserManagementPanel() {
     }
   }
 
+  async function handleUnlinkLine(profileId: string) {
+    setError(null);
+    try {
+      const response = await fetch(`/api/admin/users/${profileId}/line-account`, { method: 'DELETE' });
+      const json = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(json.error ?? 'ยกเลิกการเชื่อม LINE ไม่สำเร็จ');
+      await load();
+    } catch (unlinkError) {
+      setError(unlinkError instanceof Error ? unlinkError.message : 'ยกเลิกการเชื่อม LINE ไม่สำเร็จ');
+    }
+  }
+
   function startEdit(item: AdminUserRecord) {
     setEditingProfileId(item.profileId);
     setForm({ name: item.name, email: item.email, role: item.role, status: item.status });
@@ -128,6 +140,7 @@ export function UserManagementPanel() {
                   <td className="py-3 pr-4 text-slate-700">{item.status}</td>
                   <td className="py-3 pr-4 text-slate-700">
                     <button type="button" onClick={() => startEdit(item)} className="mr-2 rounded-full border border-slate-300 px-3 py-1 text-xs">แก้ไข</button>
+                    {item.lineUserId ? <button type="button" onClick={() => handleUnlinkLine(item.profileId)} className="mr-2 rounded-full border border-amber-300 px-3 py-1 text-xs text-amber-700">ยกเลิก LINE</button> : null}
                     <button type="button" onClick={() => handleDelete(item.profileId)} className="rounded-full border border-slate-300 px-3 py-1 text-xs">ลบ</button>
                   </td>
                 </tr>

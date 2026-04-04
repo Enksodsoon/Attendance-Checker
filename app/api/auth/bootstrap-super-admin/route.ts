@@ -4,11 +4,17 @@ import { z } from 'zod';
 import { SESSION_COOKIE } from '@/lib/auth/session';
 import { isSecureCookieRequired } from '@/lib/auth/dev-auth';
 import { getSafeNext } from '@/lib/auth/safe-redirect';
+import { verifyLineIdentity } from '@/lib/auth/line';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
+import { readValidatedJson } from '@/lib/utils/api';
 
 const schema = z.object({
   secret: z.string().min(1),
-  lineUserId: z.string().min(5),
+  accessToken: z.string().min(10).optional(),
+  idToken: z.string().min(10).optional(),
+  displayName: z.string().min(1).optional(),
+  pictureUrl: z.string().url().optional(),
+  statusMessage: z.string().optional(),
   fullNameTh: z.string().min(2).max(120).optional().or(z.literal('')),
   email: z.string().email().optional().or(z.literal('')),
   next: z.string().optional().or(z.literal(''))
@@ -20,31 +26,35 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Bootstrap is disabled. Set BOOTSTRAP_ADMIN_SECRET first.' }, { status: 403 });
   }
 
-  const form = await request.formData();
-  const parsed = schema.safeParse({
-    secret: form.get('secret'),
-    lineUserId: form.get('lineUserId'),
-    fullNameTh: form.get('fullNameTh'),
-    email: form.get('email'),
-    next: form.get('next')
-  });
-
+  const parsed = await readValidatedJson(request, schema);
   if (!parsed.success) {
-    return NextResponse.json({ error: 'Invalid input', issues: parsed.error.flatten() }, { status: 400 });
+    return parsed.response;
   }
 
   if (parsed.data.secret !== expectedSecret) {
     return NextResponse.json({ error: 'Invalid bootstrap secret' }, { status: 401 });
   }
 
-  const normalizedFullName = parsed.data.fullNameTh?.trim() || 'Super Admin';
+  let identity;
+  try {
+    identity = await verifyLineIdentity({
+      accessToken: parsed.data.accessToken,
+      idToken: parsed.data.idToken,
+      claimedDisplayName: parsed.data.displayName,
+      claimedPictureUrl: parsed.data.pictureUrl,
+      claimedStatusMessage: parsed.data.statusMessage
+    });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'LINE verification failed' }, { status: 401 });
+  }
+
+  const normalizedFullName = parsed.data.fullNameTh?.trim() || identity.displayName || 'Super Admin';
   const nextPath = getSafeNext(parsed.data.next || null, '/admin?bootstrap=1');
 
   const admin = createSupabaseAdminClient();
   const { data: existingOrg } = await admin.from('organizations').select('id').limit(1).maybeSingle();
 
   let orgId = existingOrg?.id;
-
   if (!orgId) {
     await admin
       .from('organizations')
@@ -57,12 +67,7 @@ export async function POST(request: Request) {
         { onConflict: 'code' }
       );
 
-    const { data: bootstrapOrg } = await admin
-      .from('organizations')
-      .select('id')
-      .eq('code', 'BOOTSTRAP')
-      .maybeSingle();
-
+    const { data: bootstrapOrg } = await admin.from('organizations').select('id').eq('code', 'BOOTSTRAP').maybeSingle();
     orgId = bootstrapOrg?.id;
   }
 
@@ -71,18 +76,14 @@ export async function POST(request: Request) {
   }
 
   let profileId: string;
-
   const { data: existingLineAccount } = await admin
     .from('line_accounts')
     .select('profile_id, profiles!inner(id, role, status)')
-    .eq('line_user_id', parsed.data.lineUserId)
+    .eq('line_user_id', identity.lineUserId)
     .maybeSingle();
 
   if (existingLineAccount?.profile_id) {
-    const profile = Array.isArray(existingLineAccount.profiles)
-      ? existingLineAccount.profiles[0]
-      : existingLineAccount.profiles;
-
+    const profile = Array.isArray(existingLineAccount.profiles) ? existingLineAccount.profiles[0] : existingLineAccount.profiles;
     if (!profile || profile.status !== 'active') {
       return NextResponse.json({ error: 'Existing LINE account is bound to inactive profile' }, { status: 409 });
     }
@@ -92,7 +93,7 @@ export async function POST(request: Request) {
     }
 
     profileId = existingLineAccount.profile_id;
-    await admin.from('profiles').update({ role: 'super_admin' }).eq('id', profileId);
+    await admin.from('profiles').update({ role: 'super_admin', full_name_th: normalizedFullName }).eq('id', profileId);
   } else {
     const { data: createdProfile, error: profileError } = await admin
       .from('profiles')
@@ -125,8 +126,9 @@ export async function POST(request: Request) {
   const { error: lineError } = await admin.from('line_accounts').upsert(
     {
       profile_id: profileId,
-      line_user_id: parsed.data.lineUserId,
+      line_user_id: identity.lineUserId,
       display_name: normalizedFullName,
+      picture_url: identity.pictureUrl ?? null,
       is_verified: true,
       last_login_at: new Date().toISOString()
     },
@@ -150,5 +152,5 @@ export async function POST(request: Request) {
     }
   );
 
-  return NextResponse.redirect(new URL(nextPath, request.url));
+  return NextResponse.json({ status: 'ok', redirectTo: nextPath });
 }

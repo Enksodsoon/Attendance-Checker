@@ -21,6 +21,7 @@ vi.mock('@/lib/auth/line', () => ({
 vi.mock('@/lib/services/db/accounts', () => ({
   findProfileByLineUserId: vi.fn(),
   findAnyLineLinkByUserId: vi.fn(),
+  findStudentClaimCandidateByLineIdentity: vi.fn(),
   linkVerifiedLineToExistingProfile: vi.fn(),
   updateLineAccountLoginMetadata: vi.fn(),
   claimStudentProfileWithLine: vi.fn(),
@@ -33,7 +34,7 @@ import { POST as linkLinePost } from '@/app/api/account/link-line/route';
 import { PATCH as accountPatch } from '@/app/api/account/route';
 import { markBootstrapStartedOnce } from '@/components/student/liff-bootstrap';
 import { getSessionProfile } from '@/lib/auth/session';
-import { claimStudentProfileWithLine, findAnyLineLinkByUserId, findProfileByLineUserId, linkVerifiedLineToExistingProfile, updateOwnAccount } from '@/lib/services/db/accounts';
+import { claimStudentProfileWithLine, findAnyLineLinkByUserId, findProfileByLineUserId, findStudentClaimCandidateByLineIdentity, linkVerifiedLineToExistingProfile, updateOwnAccount } from '@/lib/services/db/accounts';
 import { verifyLineIdentity } from '@/lib/auth/line';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -67,6 +68,11 @@ describe('LIFF and account security flows', () => {
     });
     vi.mocked(findProfileByLineUserId).mockResolvedValue(null);
     vi.mocked(findAnyLineLinkByUserId).mockResolvedValue(null);
+    vi.mocked(findStudentClaimCandidateByLineIdentity).mockResolvedValue({
+      profileId: 'profile-student-claim',
+      studentCode: '6512345678',
+      fullNameTh: 'Student A'
+    });
 
     const response = await liffSessionPost(new Request('http://localhost/api/liff/session', {
       method: 'POST',
@@ -90,6 +96,7 @@ describe('LIFF and account security flows', () => {
       role: 'teacher',
       status: 'inactive'
     });
+    vi.mocked(findStudentClaimCandidateByLineIdentity).mockResolvedValue(null);
 
     const response = await liffSessionPost(new Request('http://localhost/api/liff/session', {
       method: 'POST',
@@ -99,6 +106,32 @@ describe('LIFF and account security flows', () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ status: 'contact_admin' });
+  });
+
+  it('signs in linked teacher accounts and returns teacher role', async () => {
+    vi.mocked(verifyLineIdentity).mockResolvedValue({ lineUserId: 'U-teacher', displayName: 'Teacher' });
+    vi.mocked(findProfileByLineUserId).mockResolvedValue({ profileId: 'profile-teacher', lineUserId: 'U-teacher', role: 'teacher' });
+
+    const response = await liffSessionPost(new Request('http://localhost/api/liff/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accessToken: 'valid-access-token-12345' })
+    }));
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ status: 'ok', role: 'teacher' });
+  });
+
+  it('signs in linked admin accounts and returns admin role', async () => {
+    vi.mocked(verifyLineIdentity).mockResolvedValue({ lineUserId: 'U-admin', displayName: 'Admin' });
+    vi.mocked(findProfileByLineUserId).mockResolvedValue({ profileId: 'profile-admin', lineUserId: 'U-admin', role: 'admin' });
+
+    const response = await liffSessionPost(new Request('http://localhost/api/liff/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accessToken: 'valid-access-token-12345' })
+    }));
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ status: 'ok', role: 'admin' });
   });
 
   it('claims an existing unlinked student record successfully', async () => {

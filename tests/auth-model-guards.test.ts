@@ -69,4 +69,18 @@ describe('auth model guards', () => {
     expect(source).not.toContain('updateAdminUser');
     expect(source).not.toContain('deleteAdminUser');
   });
+
+  it('bootstrap route verifies LINE tokens and does not accept typed lineUserId', () => {
+    const source = readFileSync(join(process.cwd(), 'app/api/auth/bootstrap-super-admin/route.ts'), 'utf8');
+    expect(source).toContain('verifyLineIdentity');
+    expect(source).not.toContain('lineUserId: z.string()');
+    expect(source).toContain('accessToken');
+    expect(source).toContain('idToken');
+  });
+
+  it('admin repair unlink route exists for LINE linkage recovery', () => {
+    const source = readFileSync(join(process.cwd(), 'app/api/admin/users/[profileId]/line-account/route.ts'), 'utf8');
+    expect(source).toContain('export async function DELETE');
+    expect(source).toContain("['admin', 'super_admin']");
+  });
 });

@@ -120,6 +120,34 @@ export async function findAnyLineLinkByUserId(lineUserId: string) {
   };
 }
 
+export async function findStudentClaimCandidateByLineIdentity(displayName: string) {
+  const admin = createSupabaseAdminClient();
+  const { data } = await admin
+    .from('profiles')
+    .select('id, full_name_th, role, status, students(student_code), line_accounts(line_user_id)')
+    .eq('role', 'student')
+    .eq('status', 'active')
+    .eq('full_name_th', displayName.trim())
+    .limit(1)
+    .maybeSingle();
+
+  if (!data) {
+    return null;
+  }
+
+  const lineAccount = Array.isArray(data.line_accounts) ? data.line_accounts[0] : data.line_accounts;
+  const student = Array.isArray(data.students) ? data.students[0] : data.students;
+  if (lineAccount?.line_user_id || !student?.student_code) {
+    return null;
+  }
+
+  return {
+    profileId: String(data.id),
+    studentCode: String(student.student_code),
+    fullNameTh: String(data.full_name_th)
+  };
+}
+
 export async function getLineAccountByProfileId(profileId: string) {
   const admin = createSupabaseAdminClient();
   const { data } = await admin

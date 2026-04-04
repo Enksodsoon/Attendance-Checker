@@ -28,6 +28,7 @@ vi.mock('@/lib/services/db/accounts', () => ({
 import { POST as liffSessionPost } from '@/app/api/liff/session/route';
 import { POST as liffRegisterPost } from '@/app/api/liff/register/route';
 import { PATCH as accountPatch } from '@/app/api/account/route';
+import { markBootstrapStartedOnce } from '@/components/student/liff-bootstrap';
 import { getSessionProfile } from '@/lib/auth/session';
 import { claimStudentProfileWithLine, findProfileByLineUserId, updateOwnAccount } from '@/lib/services/db/accounts';
 import { verifyLineIdentity } from '@/lib/auth/line';
@@ -166,9 +167,16 @@ describe('LIFF and account security flows', () => {
     expect(updateOwnAccount).not.toHaveBeenCalled();
   });
 
-  it('keeps one-shot bootstrap guard and hard redirect flow in LIFF bootstrap component', () => {
+  it('bootstrap guard allows only one run within a mount cycle', () => {
+    const guard = { current: false };
+    expect(markBootstrapStartedOnce(guard)).toBe(true);
+    expect(markBootstrapStartedOnce(guard)).toBe(false);
+  });
+
+  it('keeps hard redirects for deterministic post-login navigation', () => {
     const source = readFileSync(join(process.cwd(), 'components/student/liff-bootstrap.tsx'), 'utf8');
-    expect(source).toContain('startedRef.current');
+    expect(source).toContain("window.location.replace('/admin')");
+    expect(source).toContain("window.location.replace('/teacher/sessions')");
     expect(source).toContain("window.location.replace('/liff')");
     expect(source).not.toContain('router.refresh()');
   });

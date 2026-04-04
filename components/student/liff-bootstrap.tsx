@@ -11,6 +11,14 @@ type SessionResponse = {
   error?: string;
 };
 
+export function markBootstrapStartedOnce(startedRef: { current: boolean }) {
+  if (startedRef.current) {
+    return false;
+  }
+  startedRef.current = true;
+  return true;
+}
+
 export function LiffBootstrap({ student, liffId }: Readonly<{ student?: StudentIdentity; liffId: string }>) {
   const [status, setStatus] = useState<'idle' | 'connecting' | 'signed_in' | 'registration_required' | 'error'>('idle');
   const [message, setMessage] = useState('กำลังเตรียม LIFF');
@@ -20,10 +28,9 @@ export function LiffBootstrap({ student, liffId }: Readonly<{ student?: StudentI
   useEffect(() => {
     let cancelled = false;
 
-    if (startedRef.current) {
+    if (!markBootstrapStartedOnce(startedRef)) {
       return;
     }
-    startedRef.current = true;
 
     async function bootstrap() {
       if (student) {

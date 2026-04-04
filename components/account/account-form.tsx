@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
+import { initializeLiff } from '@/lib/liff/client';
 
 type AccountPayload = {
   profileId: string;
@@ -12,12 +13,14 @@ type AccountPayload = {
   teacher?: { teacherCode: string; departmentName?: string };
 };
 
-export function AccountForm({ initial }: Readonly<{ initial: AccountPayload }>) {
+export function AccountForm({ initial, liffId }: Readonly<{ initial: AccountPayload; liffId: string }>) {
   const [fullNameTh, setFullNameTh] = useState(initial.fullNameTh);
   const [email, setEmail] = useState(initial.email);
   const [academicYear, setAcademicYear] = useState(initial.student?.academicYear?.toString() ?? '');
   const [facultyName, setFacultyName] = useState(initial.student?.facultyName ?? '');
   const [message, setMessage] = useState<string | null>(null);
+  const [lineAccount, setLineAccount] = useState(initial.lineAccount);
+  const [linking, setLinking] = useState(false);
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -43,18 +46,61 @@ export function AccountForm({ initial }: Readonly<{ initial: AccountPayload }>) 
     setMessage('Account updated');
   }
 
+  async function handleLinkLine() {
+    setMessage(null);
+    setLinking(true);
+    try {
+      const profile = await initializeLiff(liffId);
+      if (!profile) {
+        return;
+      }
+
+      const response = await fetch('/api/account/link-line', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accessToken: profile.accessToken,
+          idToken: profile.idToken,
+          displayName: profile.displayName,
+          pictureUrl: profile.pictureUrl,
+          statusMessage: profile.statusMessage
+        })
+      });
+
+      const payload = (await response.json()) as {
+        error?: string;
+        lineAccount?: { lineUserId: string; displayName?: string; pictureUrl?: string } | null;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error ?? 'Unable to link LINE account');
+      }
+
+      setLineAccount(payload.lineAccount ?? null);
+      setMessage('LINE account linked successfully');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to link LINE account');
+    } finally {
+      setLinking(false);
+    }
+  }
+
   return (
     <form onSubmit={save} className="mt-6 grid gap-3">
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
         <p className="font-medium text-slate-900">Linked LINE (read-only)</p>
-        {initial.lineAccount ? (
+        {lineAccount ? (
           <div className="mt-1 space-y-1">
-            <p>Display name: {initial.lineAccount.displayName || '-'}</p>
-            <p>LINE User ID: {initial.lineAccount.lineUserId}</p>
-            <p>Picture URL: {initial.lineAccount.pictureUrl || '-'}</p>
+            <p>Display name: {lineAccount.displayName || '-'}</p>
+            <p>LINE User ID: {lineAccount.lineUserId}</p>
+            <p>Picture URL: {lineAccount.pictureUrl || '-'}</p>
           </div>
         ) : (
-          <p className="mt-1">No LINE account linked</p>
+          <div className="mt-2 space-y-2">
+            <p>No LINE account linked</p>
+            <button type="button" onClick={handleLinkLine} disabled={linking} className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 disabled:opacity-60">
+              {linking ? 'Linking LINE...' : 'Link LINE account'}
+            </button>
+          </div>
         )}
       </div>
 

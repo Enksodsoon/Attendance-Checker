@@ -1,12 +1,14 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { AccountForm } from '@/components/account/account-form';
+import { getEnv } from '@/lib/config/env';
 import { getSessionProfile } from '@/lib/auth/session';
 import { getAccountByProfileId } from '@/lib/services/db/accounts';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AccountPage() {
+  const env = getEnv();
   const session = await getSessionProfile();
   if (!session) {
     redirect('/login');
@@ -35,7 +37,7 @@ export default async function AccountPage() {
           <p className="mt-1 text-sm text-slate-600">Teacher code: {account.teacher.teacherCode}</p>
         ) : null}
 
-        <AccountForm initial={account} />
+        <AccountForm initial={account} liffId={env.NEXT_PUBLIC_LIFF_ID} />
 
         <div className="mt-6 flex flex-wrap gap-3">
           <Link href="/" className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700">Back home</Link>

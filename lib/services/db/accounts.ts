@@ -120,6 +120,63 @@ export async function findAnyLineLinkByUserId(lineUserId: string) {
   };
 }
 
+export async function getLineAccountByProfileId(profileId: string) {
+  const admin = createSupabaseAdminClient();
+  const { data } = await admin
+    .from('line_accounts')
+    .select('profile_id, line_user_id, display_name, picture_url')
+    .eq('profile_id', profileId)
+    .maybeSingle();
+
+  if (!data?.line_user_id) {
+    return null;
+  }
+
+  return {
+    profileId: data.profile_id,
+    lineUserId: data.line_user_id,
+    displayName: data.display_name ? String(data.display_name) : undefined,
+    pictureUrl: data.picture_url ? String(data.picture_url) : undefined
+  };
+}
+
+export async function linkVerifiedLineToExistingProfile(input: {
+  profileId: string;
+  lineUserId: string;
+  displayName: string;
+  pictureUrl?: string;
+}) {
+  const admin = createSupabaseAdminClient();
+
+  const existingByLine = await findAnyLineLinkByUserId(input.lineUserId);
+  if (existingByLine?.profileId && existingByLine.profileId !== input.profileId) {
+    throw codedError('LINE_ALREADY_LINKED', 'LINE account is already linked to another profile');
+  }
+
+  const existingByProfile = await getLineAccountByProfileId(input.profileId);
+  if (existingByProfile?.lineUserId && existingByProfile.lineUserId !== input.lineUserId) {
+    throw codedError('PROFILE_ALREADY_LINKED', 'This profile is already linked to another LINE account');
+  }
+
+  const { error } = await admin.from('line_accounts').upsert(
+    {
+      profile_id: input.profileId,
+      line_user_id: input.lineUserId,
+      display_name: input.displayName,
+      picture_url: input.pictureUrl ?? null,
+      is_verified: true,
+      last_login_at: new Date().toISOString()
+    },
+    { onConflict: 'profile_id' }
+  );
+
+  if (error) {
+    throw error;
+  }
+
+  return getLineAccountByProfileId(input.profileId);
+}
+
 export async function updateLineAccountLoginMetadata(input: {
   lineUserId: string;
   displayName: string;

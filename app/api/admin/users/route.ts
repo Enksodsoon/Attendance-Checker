@@ -1,9 +1,7 @@
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { LINE_ID_COOKIE, getSessionProfile } from '@/lib/auth/session';
+import { getSessionProfile } from '@/lib/auth/session';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
-import { addAdminUser, deleteAdminUser, getAdminUsers, updateAdminUser } from '@/lib/services/app-data';
 import { writeAuditLog } from '@/lib/services/audit-log';
 import { readValidatedJson } from '@/lib/utils/api';
 
@@ -11,12 +9,11 @@ const schema = z.object({
   name: z.string().min(2).max(120),
   email: z.string().email(),
   role: z.enum(['student', 'teacher', 'admin', 'super_admin']),
-  status: z.enum(['active', 'inactive', 'suspended']).optional(),
-  lineUserId: z.string().min(5).optional().or(z.literal(''))
+  status: z.enum(['active', 'inactive', 'suspended']).optional()
 });
 
 const updateSchema = schema.extend({
-  profileId: z.string().min(1),
+  profileId: z.string().uuid(),
   status: z.enum(['active', 'inactive', 'suspended'])
 });
 
@@ -38,78 +35,21 @@ async function resolveOrganizationId() {
   return bootstrapOrg?.id ?? null;
 }
 
-async function syncLineAccountToSupabase(input: {
-  name: string;
-  email: string;
-  role: 'student' | 'teacher' | 'admin' | 'super_admin';
-  status: 'active' | 'inactive' | 'suspended';
-  lineUserId?: string;
-}) {
-  const lineUserId = input.lineUserId?.trim();
-  if (!lineUserId) {
-    return;
-  }
-
-  const orgId = await resolveOrganizationId();
-  if (!orgId) {
-    throw new Error('Cannot link LINE account: no organization available');
-  }
-
-  const admin = createSupabaseAdminClient();
-  const { data: existingProfile } = await admin.from('profiles').select('id').eq('email', input.email).maybeSingle();
-
-  let profileId = existingProfile?.id;
-  if (!profileId) {
-    const { data: createdProfile, error: profileError } = await admin
-      .from('profiles')
-      .insert({
-        organization_id: orgId,
-        full_name_th: input.name,
-        email: input.email,
-        role: input.role,
-        status: input.status,
-        locale: 'th'
-      })
-      .select('id')
-      .single();
-
-    if (profileError || !createdProfile?.id) {
-      throw new Error(profileError?.message ?? 'Cannot create profile for LINE linking');
-    }
-
-    profileId = createdProfile.id;
-  } else {
-    await admin.from('profiles').update({
-      full_name_th: input.name,
-      role: input.role,
-      status: input.status
-    }).eq('id', profileId);
-  }
-
-  if (input.role === 'admin' || input.role === 'super_admin') {
-    await admin.from('admin_roles').upsert(
-      {
-        profile_id: profileId,
-        role: input.role
-      },
-      { onConflict: 'profile_id,role' }
-    );
-  }
-
-  const { error: lineError } = await admin.from('line_accounts').upsert(
-    {
-      profile_id: profileId,
-      line_user_id: lineUserId,
-      display_name: input.name,
-      is_verified: true,
-      last_login_at: new Date().toISOString()
-    },
-    { onConflict: 'profile_id' }
-  );
-
-  if (lineError) {
-    throw new Error(lineError.message);
-  }
+function mapItems(rows: Array<Record<string, unknown>>) {
+  return rows.map((row) => {
+    const student = Array.isArray(row.students) ? row.students[0] : row.students;
+    const line = Array.isArray(row.line_accounts) ? row.line_accounts[0] : row.line_accounts;
+    return {
+      profileId: String(row.id),
+      name: String(row.full_name_th ?? ''),
+      email: String(row.email ?? ''),
+      role: String(row.role) as 'student' | 'teacher' | 'admin' | 'super_admin',
+      status: String(row.status) as 'active' | 'inactive' | 'suspended',
+      lastActiveAt: String(row.updated_at ?? new Date().toISOString()),
+      linkedStudentCode: student?.student_code ? String(student.student_code) : undefined,
+      lineUserId: line?.line_user_id ? String(line.line_user_id) : undefined
+    };
+  });
 }
 
 export async function GET() {
@@ -118,7 +58,18 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  return NextResponse.json({ items: getAdminUsers() });
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin
+    .from('profiles')
+    .select('id, full_name_th, email, role, status, updated_at, students(student_code), line_accounts(line_user_id)')
+    .in('role', ['student', 'teacher', 'admin', 'super_admin'])
+    .order('updated_at', { ascending: false });
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ items: mapItems((data as Array<Record<string, unknown>>) ?? []) });
 }
 
 export async function POST(request: Request) {
@@ -132,35 +83,58 @@ export async function POST(request: Request) {
     return parsed.response;
   }
 
-  const payload = parsed.data;
-  const store = await cookies();
-  const currentLineUserId = store.get(LINE_ID_COOKIE)?.value;
-  const linkedLineUserId = payload.lineUserId?.trim() || currentLineUserId || undefined;
+  const orgId = await resolveOrganizationId();
+  if (!orgId) {
+    return NextResponse.json({ error: 'Unable to resolve organization' }, { status: 500 });
+  }
 
-  let syncWarning: string | undefined;
-  try {
-    await syncLineAccountToSupabase({
-      name: payload.name,
+  const payload = parsed.data;
+  const admin = createSupabaseAdminClient();
+  const { data: created, error } = await admin
+    .from('profiles')
+    .insert({
+      organization_id: orgId,
+      full_name_th: payload.name,
       email: payload.email,
       role: payload.role,
       status: payload.status ?? 'active',
-      lineUserId: linkedLineUserId
-    });
-  } catch (syncError) {
-    syncWarning = syncError instanceof Error ? syncError.message : 'Cannot link LINE account';
+      locale: 'th'
+    })
+    .select('id, full_name_th, email, role, status, updated_at')
+    .single();
+
+  if (error || !created?.id) {
+    return NextResponse.json({ error: error?.message ?? 'Failed to create profile' }, { status: 500 });
   }
 
-  const user = addAdminUser({ ...payload, lineUserId: linkedLineUserId });
+  if (payload.role === 'admin' || payload.role === 'super_admin') {
+    await admin.from('admin_roles').upsert(
+      {
+        profile_id: created.id,
+        role: payload.role
+      },
+      { onConflict: 'profile_id,role' }
+    );
+  }
 
   await writeAuditLog({
     actorProfileId: actor.profileId,
     actionType: 'admin_user.created',
     entityType: 'profile',
-    entityId: user.profileId,
+    entityId: created.id,
     metadata: payload
   });
 
-  return NextResponse.json({ item: user, warning: syncWarning }, { status: 201 });
+  return NextResponse.json({
+    item: {
+      profileId: created.id,
+      name: created.full_name_th,
+      email: created.email ?? '',
+      role: created.role,
+      status: created.status,
+      lastActiveAt: created.updated_at
+    }
+  }, { status: 201 });
 }
 
 export async function PATCH(request: Request) {
@@ -175,37 +149,56 @@ export async function PATCH(request: Request) {
   }
 
   const payload = parsed.data;
-  const store = await cookies();
-  const currentLineUserId = store.get(LINE_ID_COOKIE)?.value;
-  const linkedLineUserId = payload.lineUserId?.trim() || currentLineUserId || undefined;
-
-  let syncWarning: string | undefined;
-  try {
-    await syncLineAccountToSupabase({
-      name: payload.name,
+  const admin = createSupabaseAdminClient();
+  const { data: updated, error } = await admin
+    .from('profiles')
+    .update({
+      full_name_th: payload.name,
       email: payload.email,
       role: payload.role,
-      status: payload.status,
-      lineUserId: linkedLineUserId
-    });
-  } catch (syncError) {
-    syncWarning = syncError instanceof Error ? syncError.message : 'Cannot link LINE account';
+      status: payload.status
+    })
+    .eq('id', payload.profileId)
+    .select('id, full_name_th, email, role, status, updated_at')
+    .maybeSingle();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  if (!updated?.id) {
+    return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
-  const user = updateAdminUser({ ...payload, lineUserId: linkedLineUserId });
-  if (!user) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  if (payload.role === 'admin' || payload.role === 'super_admin') {
+    await admin.from('admin_roles').upsert(
+      {
+        profile_id: payload.profileId,
+        role: payload.role
+      },
+      { onConflict: 'profile_id,role' }
+    );
+  } else {
+    await admin.from('admin_roles').delete().eq('profile_id', payload.profileId);
   }
 
   await writeAuditLog({
     actorProfileId: actor.profileId,
     actionType: 'admin_user.updated',
     entityType: 'profile',
-    entityId: user.profileId,
+    entityId: updated.id,
     metadata: payload
   });
 
-  return NextResponse.json({ item: user, warning: syncWarning });
+  return NextResponse.json({
+    item: {
+      profileId: updated.id,
+      name: updated.full_name_th,
+      email: updated.email ?? '',
+      role: updated.role,
+      status: updated.status,
+      lastActiveAt: updated.updated_at
+    }
+  });
 }
 
 export async function DELETE(request: Request) {
@@ -219,8 +212,18 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: 'Missing profileId' }, { status: 400 });
   }
 
-  const removed = deleteAdminUser(profileId);
-  if (!removed) {
+  const admin = createSupabaseAdminClient();
+  const { data: updated, error } = await admin
+    .from('profiles')
+    .update({ status: 'inactive' })
+    .eq('id', profileId)
+    .select('id, full_name_th, email, role, status, updated_at')
+    .maybeSingle();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  if (!updated?.id) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
@@ -232,5 +235,14 @@ export async function DELETE(request: Request) {
     metadata: {}
   });
 
-  return NextResponse.json({ item: removed });
+  return NextResponse.json({
+    item: {
+      profileId: updated.id,
+      name: updated.full_name_th,
+      email: updated.email ?? '',
+      role: updated.role,
+      status: updated.status,
+      lastActiveAt: updated.updated_at
+    }
+  });
 }

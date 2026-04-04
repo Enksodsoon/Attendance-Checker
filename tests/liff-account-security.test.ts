@@ -21,6 +21,7 @@ vi.mock('@/lib/auth/line', () => ({
 vi.mock('@/lib/services/db/accounts', () => ({
   findProfileByLineUserId: vi.fn(),
   findAnyLineLinkByUserId: vi.fn(),
+  linkVerifiedLineToExistingProfile: vi.fn(),
   updateLineAccountLoginMetadata: vi.fn(),
   claimStudentProfileWithLine: vi.fn(),
   updateOwnAccount: vi.fn()
@@ -28,10 +29,11 @@ vi.mock('@/lib/services/db/accounts', () => ({
 
 import { POST as liffSessionPost } from '@/app/api/liff/session/route';
 import { POST as liffRegisterPost } from '@/app/api/liff/register/route';
+import { POST as linkLinePost } from '@/app/api/account/link-line/route';
 import { PATCH as accountPatch } from '@/app/api/account/route';
 import { markBootstrapStartedOnce } from '@/components/student/liff-bootstrap';
 import { getSessionProfile } from '@/lib/auth/session';
-import { claimStudentProfileWithLine, findAnyLineLinkByUserId, findProfileByLineUserId, updateOwnAccount } from '@/lib/services/db/accounts';
+import { claimStudentProfileWithLine, findAnyLineLinkByUserId, findProfileByLineUserId, linkVerifiedLineToExistingProfile, updateOwnAccount } from '@/lib/services/db/accounts';
 import { verifyLineIdentity } from '@/lib/auth/line';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -244,5 +246,111 @@ describe('LIFF and account security flows', () => {
     expect(source).toContain("window.location.replace('/teacher/sessions')");
     expect(source).toContain("window.location.replace('/liff')");
     expect(source).not.toContain('router.refresh()');
+  });
+
+  it('links LINE account for a signed-in user successfully', async () => {
+    vi.mocked(getSessionProfile).mockResolvedValue({
+      profileId: 'profile-1',
+      role: 'student',
+      name: 'A',
+      email: '',
+      status: 'active',
+      lastActiveAt: new Date().toISOString()
+    });
+    vi.mocked(verifyLineIdentity).mockResolvedValue({
+      lineUserId: 'U-link-1',
+      displayName: 'Line A'
+    });
+    vi.mocked(linkVerifiedLineToExistingProfile).mockResolvedValue({
+      profileId: 'profile-1',
+      lineUserId: 'U-link-1',
+      displayName: 'Line A',
+      pictureUrl: undefined
+    });
+
+    const response = await linkLinePost(new Request('http://localhost/api/account/link-line', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accessToken: 'valid-access-token-12345' })
+    }));
+
+    expect(response.status).toBe(200);
+  });
+
+  it('rejects signed-in linking when LINE account belongs to another profile', async () => {
+    vi.mocked(getSessionProfile).mockResolvedValue({
+      profileId: 'profile-1',
+      role: 'student',
+      name: 'A',
+      email: '',
+      status: 'active',
+      lastActiveAt: new Date().toISOString()
+    });
+    vi.mocked(verifyLineIdentity).mockResolvedValue({
+      lineUserId: 'U-link-2',
+      displayName: 'Line B'
+    });
+    vi.mocked(linkVerifiedLineToExistingProfile).mockRejectedValue(new Error('LINE_ALREADY_LINKED: conflict'));
+
+    const response = await linkLinePost(new Request('http://localhost/api/account/link-line', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accessToken: 'valid-access-token-12345' })
+    }));
+
+    expect(response.status).toBe(409);
+  });
+
+  it('rejects signed-in linking when profile is linked to another LINE account', async () => {
+    vi.mocked(getSessionProfile).mockResolvedValue({
+      profileId: 'profile-1',
+      role: 'student',
+      name: 'A',
+      email: '',
+      status: 'active',
+      lastActiveAt: new Date().toISOString()
+    });
+    vi.mocked(verifyLineIdentity).mockResolvedValue({
+      lineUserId: 'U-link-3',
+      displayName: 'Line C'
+    });
+    vi.mocked(linkVerifiedLineToExistingProfile).mockRejectedValue(new Error('PROFILE_ALREADY_LINKED: conflict'));
+
+    const response = await linkLinePost(new Request('http://localhost/api/account/link-line', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accessToken: 'valid-access-token-12345' })
+    }));
+
+    expect(response.status).toBe(409);
+  });
+
+  it('allows idempotent relink for same profile and same LINE account', async () => {
+    vi.mocked(getSessionProfile).mockResolvedValue({
+      profileId: 'profile-1',
+      role: 'student',
+      name: 'A',
+      email: '',
+      status: 'active',
+      lastActiveAt: new Date().toISOString()
+    });
+    vi.mocked(verifyLineIdentity).mockResolvedValue({
+      lineUserId: 'U-link-4',
+      displayName: 'Line D'
+    });
+    vi.mocked(linkVerifiedLineToExistingProfile).mockResolvedValue({
+      profileId: 'profile-1',
+      lineUserId: 'U-link-4',
+      displayName: 'Line D',
+      pictureUrl: undefined
+    });
+
+    const response = await linkLinePost(new Request('http://localhost/api/account/link-line', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accessToken: 'valid-access-token-12345' })
+    }));
+
+    expect(response.status).toBe(200);
   });
 });

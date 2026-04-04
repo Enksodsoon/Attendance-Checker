@@ -29,6 +29,8 @@ vi.mock('@/lib/supabase/server', () => ({
 
 import { isDevAuthEnabled } from '@/lib/auth/dev-auth';
 import { getSessionProfile } from '@/lib/auth/session';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 describe('auth model guards', () => {
   const originalAllowDevAuth = process.env.ALLOW_DEV_AUTH;
@@ -57,5 +59,14 @@ describe('auth model guards', () => {
 
     const result = await getSessionProfile();
     expect(result).toBeNull();
+  });
+
+  it('admin users api no longer depends on app-data helpers', () => {
+    const source = readFileSync(join(process.cwd(), 'app/api/admin/users/route.ts'), 'utf8');
+    expect(source).not.toContain("@/lib/services/app-data");
+    expect(source).not.toContain('getAdminUsers');
+    expect(source).not.toContain('addAdminUser');
+    expect(source).not.toContain('updateAdminUser');
+    expect(source).not.toContain('deleteAdminUser');
   });
 });

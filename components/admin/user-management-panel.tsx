@@ -11,11 +11,11 @@ export function UserManagementPanel() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', email: '', role: 'teacher' as AppRole, status: 'active' as AdminUserRecord['status'], lineUserId: '' });
+  const [form, setForm] = useState({ name: '', email: '', role: 'teacher' as AppRole, status: 'active' as AdminUserRecord['status'] });
 
   function resetForm() {
     setEditingProfileId(null);
-    setForm({ name: '', email: '', role: 'teacher', status: 'active', lineUserId: '' });
+    setForm({ name: '', email: '', role: 'teacher', status: 'active' });
   }
 
   async function load() {
@@ -70,7 +70,7 @@ export function UserManagementPanel() {
 
   function startEdit(item: AdminUserRecord) {
     setEditingProfileId(item.profileId);
-    setForm({ name: item.name, email: item.email, role: item.role, status: item.status, lineUserId: item.lineUserId ?? '' });
+    setForm({ name: item.name, email: item.email, role: item.role, status: item.status });
   }
 
   const roleTone = { student: 'slate', teacher: 'teal', admin: 'amber', super_admin: 'red' } as const;
@@ -85,7 +85,6 @@ export function UserManagementPanel() {
         <div className="grid gap-4 md:grid-cols-3">
           <input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="ชื่อผู้ใช้" className="rounded-2xl border border-slate-300 px-4 py-3" />
           <input value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} placeholder="email@university.ac.th" className="rounded-2xl border border-slate-300 px-4 py-3" />
-          <input value={form.lineUserId} onChange={(event) => setForm((current) => ({ ...current, lineUserId: event.target.value }))} placeholder="LINE User ID (Uxxxx)" className="rounded-2xl border border-slate-300 px-4 py-3" />
           <select value={form.role} onChange={(event) => setForm((current) => ({ ...current, role: event.target.value as AppRole }))} className="rounded-2xl border border-slate-300 px-4 py-3">
             <option value="student">student</option>
             <option value="teacher">teacher</option>

@@ -6,43 +6,36 @@ export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
   const currentProfile = await getSessionProfile();
-  const teacherConsoleHref = currentProfile ? '/teacher/sessions' : '/auth/required?next=/teacher/sessions';
-  const adminConsoleHref = currentProfile ? '/admin' : '/auth/required?next=/admin';
   const devAuthEnabled = isDevAuthEnabled();
 
   return (
     <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-8 px-6 py-10">
       <section className="rounded-3xl border border-[var(--border)] bg-white p-8 shadow-sm">
-        <span className="rounded-full bg-indigo-50 px-3 py-1 text-sm font-medium text-indigo-700">Production-ready entry</span>
-        <h1 className="mt-4 text-4xl font-bold tracking-tight text-slate-900">ระบบเช็กชื่อมหาวิทยาลัยบน LINE LIFF + Supabase</h1>
-        <p className="mt-4 text-lg text-slate-600">นักศึกษาเข้าใช้งานผ่าน LIFF ที่ /liff ส่วนอาจารย์และแอดมินในเวอร์ชันนี้ยังมีโหมดชั่วคราวสำหรับ preview/dev และ first-time setup</p>
+        <span className="rounded-full bg-indigo-50 px-3 py-1 text-sm font-medium text-indigo-700">Attendance Checker</span>
+        <h1 className="mt-4 text-4xl font-bold tracking-tight text-slate-900">LINE attendance application</h1>
+        <p className="mt-4 text-lg text-slate-600">Sign in with LINE to access your account and attendance tools.</p>
 
         <div className="mt-6 flex flex-wrap gap-3">
-          <Link href="/liff" className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white">เปิดหน้า LIFF</Link>
-          <Link href={devAuthEnabled ? '/api/auth/dev-role-login?role=teacher&next=/teacher/sessions' : teacherConsoleHref} className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700">Teacher Console</Link>
-          <Link href={devAuthEnabled ? '/api/auth/dev-role-login?role=admin&next=/admin' : adminConsoleHref} className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700">Admin Console</Link>
-          {devAuthEnabled ? (
-            <Link href="/api/auth/dev-admin-login" className="rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800">DEV: เข้า Admin ทันที</Link>
-          ) : null}
-          {devAuthEnabled ? (
-            <p className="w-full text-xs text-amber-700">
-              DEV: หาก Admin login แจ้งว่าไม่มีแอดมิน ให้สร้าง super admin คนแรกก่อนที่ <code>/register/super-admin</code>
-            </p>
-          ) : null}
-          {devAuthEnabled ? (
-            <p className="w-full text-xs text-amber-700">
-              DEV: ผูก LINE กับแอดมินชั่วคราวได้ที่ <code>/api/auth/dev-admin-login?lineUserId=Uxxxxxxxx (ผูก LINE)</code>
-            </p>
-          ) : null}
-          <a href="/register/super-admin" className="w-full text-xs text-teal-700 underline underline-offset-4">First-time setup: register a super admin account</a>
-          <a href="/register/offline-admin" className="w-full text-xs text-rose-700 underline underline-offset-4">Emergency fallback: offline admin login</a>
+          <Link href="/login" className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white">Sign in</Link>
+          <Link href="/liff" className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700">Open LIFF</Link>
+          {currentProfile ? <Link href="/account" className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700">My account</Link> : null}
+          {currentProfile ? <a href="/api/auth/logout" className="rounded-full border border-rose-300 px-4 py-2 text-sm font-medium text-rose-700">Logout</a> : null}
         </div>
 
         {currentProfile ? (
           <p className="mt-6 text-sm text-slate-500">Signed in as {currentProfile.name} ({currentProfile.role})</p>
-        ) : (
-          <p className="mt-6 text-sm text-slate-500">ยังไม่มีเซสชัน ให้เข้าใช้งานจาก LINE LIFF หรือ Supabase Auth ก่อน</p>
-        )}
+        ) : null}
+      </section>
+
+      <section className="rounded-3xl border border-[var(--border)] bg-white p-8 shadow-sm">
+        <h2 className="text-xl font-semibold text-slate-900">Admin and setup tools</h2>
+        <div className="mt-4 flex flex-wrap gap-3 text-sm">
+          <Link href="/register/super-admin" className="rounded-full border border-teal-300 px-4 py-2 text-teal-700">Register super admin</Link>
+          <Link href="/register/offline-admin" className="rounded-full border border-rose-300 px-4 py-2 text-rose-700">Offline admin login</Link>
+          <Link href="/teacher/sessions" className="rounded-full border border-slate-300 px-4 py-2 text-slate-700">Teacher console</Link>
+          <Link href="/admin" className="rounded-full border border-slate-300 px-4 py-2 text-slate-700">Admin console</Link>
+          {devAuthEnabled ? <Link href="/api/auth/dev-admin-login" className="rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-amber-800">DEV admin login</Link> : null}
+        </div>
       </section>
     </main>
   );

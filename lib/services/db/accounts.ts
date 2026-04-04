@@ -13,6 +13,27 @@ function codedError(code: string, message: string) {
   return new Error(`${code}: ${message}`);
 }
 
+export type AccountView = {
+  profileId: string;
+  role: Role;
+  fullNameTh: string;
+  email: string;
+  lineAccount: {
+    lineUserId: string;
+    displayName?: string;
+    pictureUrl?: string;
+  } | null;
+  student?: {
+    studentCode: string;
+    academicYear?: number;
+    facultyName?: string;
+  };
+  teacher?: {
+    teacherCode: string;
+    departmentName?: string;
+  };
+};
+
 export async function ensureDefaultOrganization() {
   const admin = createSupabaseAdminClient();
   const fallbackCode = process.env.DEFAULT_ORGANIZATION_CODE || 'DEFAULT';
@@ -176,4 +197,80 @@ export async function createStudentFromLineRegistration(input: {
     profileId: createdProfileId,
     role: mapRole(String(createdProfile.role))
   };
+}
+
+export async function getAccountByProfileId(profileId: string): Promise<AccountView | null> {
+  const admin = createSupabaseAdminClient();
+  const { data } = await admin
+    .from('profiles')
+    .select(`
+      id, role, full_name_th, email,
+      line_accounts(line_user_id, display_name, picture_url),
+      students(student_code, academic_year, faculty_name_th),
+      teachers(teacher_code, department_name_th)
+    `)
+    .eq('id', profileId)
+    .maybeSingle();
+
+  if (!data) return null;
+
+  const lineAccount = Array.isArray(data.line_accounts) ? data.line_accounts[0] : data.line_accounts;
+  const student = Array.isArray(data.students) ? data.students[0] : data.students;
+  const teacher = Array.isArray(data.teachers) ? data.teachers[0] : data.teachers;
+
+  return {
+    profileId: data.id,
+    role: mapRole(String(data.role)),
+    fullNameTh: String(data.full_name_th ?? ''),
+    email: String(data.email ?? ''),
+    lineAccount: lineAccount?.line_user_id
+      ? {
+          lineUserId: String(lineAccount.line_user_id),
+          displayName: lineAccount.display_name ? String(lineAccount.display_name) : undefined,
+          pictureUrl: lineAccount.picture_url ? String(lineAccount.picture_url) : undefined
+        }
+      : null,
+    student: student?.student_code
+      ? {
+          studentCode: String(student.student_code),
+          academicYear: student.academic_year ? Number(student.academic_year) : undefined,
+          facultyName: student.faculty_name_th ? String(student.faculty_name_th) : undefined
+        }
+      : undefined,
+    teacher: teacher?.teacher_code
+      ? {
+          teacherCode: String(teacher.teacher_code),
+          departmentName: teacher.department_name_th ? String(teacher.department_name_th) : undefined
+        }
+      : undefined
+  };
+}
+
+export async function updateOwnAccount(
+  profileId: string,
+  role: Role,
+  input: { fullNameTh?: string; email?: string; academicYear?: number; facultyName?: string }
+) {
+  const admin = createSupabaseAdminClient();
+
+  const profilePatch: Record<string, string | null> = {};
+  if (input.fullNameTh !== undefined) profilePatch.full_name_th = input.fullNameTh.trim();
+  if (input.email !== undefined) profilePatch.email = input.email.trim() || null;
+
+  if (Object.keys(profilePatch).length > 0) {
+    const { error } = await admin.from('profiles').update(profilePatch).eq('id', profileId);
+    if (error) throw error;
+  }
+
+  if (role === 'student') {
+    const studentPatch: Record<string, number | string | null> = {};
+    if (input.academicYear !== undefined) studentPatch.academic_year = input.academicYear;
+    if (input.facultyName !== undefined) studentPatch.faculty_name_th = input.facultyName.trim() || null;
+    if (Object.keys(studentPatch).length > 0) {
+      const { error } = await admin.from('students').update(studentPatch).eq('profile_id', profileId);
+      if (error) throw error;
+    }
+  }
+
+  return getAccountByProfileId(profileId);
 }

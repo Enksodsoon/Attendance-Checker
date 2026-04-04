@@ -32,6 +32,10 @@ export default async function LiffHomePage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col gap-4 px-3 py-4">
+      <div className="flex flex-wrap gap-2 text-sm">
+        <a href="/account" className="rounded-full border border-slate-300 px-3 py-1.5 text-slate-700">My account</a>
+        <a href="/api/auth/logout" className="rounded-full border border-rose-300 px-3 py-1.5 text-rose-700">Logout</a>
+      </div>
       <StudentDashboardMobile student={student} summary={summary} activeSessions={activeSessions} recentHistory={recentHistory} />
       <LiffBootstrap student={student} liffId={env.NEXT_PUBLIC_LIFF_ID} />
     </main>

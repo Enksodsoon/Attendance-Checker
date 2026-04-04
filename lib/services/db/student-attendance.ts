@@ -324,25 +324,3 @@ export async function getStudentHistory(profileId: string): Promise<AttendanceHi
     } satisfies AttendanceHistoryItem;
   });
 }
-
-export async function resolveLineAccount(lineUserId: string) {
-  const admin = createSupabaseAdminClient();
-  const { data } = await admin
-    .from('line_accounts')
-    .select('profile_id, line_user_id, profiles(role, status)')
-    .eq('line_user_id', lineUserId)
-    .maybeSingle();
-
-  const profileRow = pickFirst((data?.profiles as Row | Row[] | null) ?? null);
-  if (!data || !profileRow || String(profileRow.status) !== 'active') return null;
-
-  return {
-    profileId: String(data.profile_id),
-    lineUserId: String(data.line_user_id),
-    role: mapRole(String(profileRow.role))
-  };
-}
-
-function mapRole(role: string) {
-  return role === 'teacher' || role === 'admin' || role === 'super_admin' ? role : 'student';
-}

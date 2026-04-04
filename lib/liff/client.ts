@@ -28,11 +28,3 @@ export async function initializeLiff(liffId: string) {
     idToken
   } satisfies LineProfile;
 }
-
-export async function getLiffAccessToken() {
-  if (!initialized) {
-    return null;
-  }
-
-  return liff.getAccessToken();
-}

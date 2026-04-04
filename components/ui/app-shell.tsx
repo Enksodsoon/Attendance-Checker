@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { Route } from 'next';
 import Link from 'next/link';
-import { getDemoAccountSummaries, getSessionProfile } from '@/lib/auth/session';
+import { getSessionProfile } from '@/lib/auth/session';
 import { SessionControls } from '@/components/ui/session-controls';
 
 const links: ReadonlyArray<{ href: Route; label: string }> = [
@@ -13,7 +13,6 @@ const links: ReadonlyArray<{ href: Route; label: string }> = [
 
 export async function AppShell({ children }: Readonly<{ children: ReactNode }>) {
   const currentProfile = await getSessionProfile();
-  const accounts = await getDemoAccountSummaries();
 
   return (
     <div className="min-h-screen bg-transparent text-slate-900">
@@ -29,7 +28,7 @@ export async function AppShell({ children }: Readonly<{ children: ReactNode }>) 
               ))}
             </nav>
           </div>
-          <SessionControls currentProfile={currentProfile} accounts={accounts} />
+          <SessionControls currentProfile={currentProfile} />
         </div>
       </header>
       {children}

@@ -1,14 +1,5 @@
 import { z } from 'zod';
 
-const requiredEnvSchema = z.object({
-  NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
-  NEXT_PUBLIC_LIFF_ID: z.string().min(1),
-  LINE_CHANNEL_ID: z.string().min(1),
-  LINE_CHANNEL_SECRET: z.string().min(1)
-});
-
 const envSchema = z.object({
   NEXT_PUBLIC_APP_NAME: z.string().default('Attendance Checker'),
   NEXT_PUBLIC_APP_URL: z.string().url().default('http://localhost:3000'),
@@ -54,16 +45,16 @@ export function getEnv(): AppEnv {
     MANUAL_APPROVAL_POLICY: process.env.MANUAL_APPROVAL_POLICY
   };
 
-  const required = requiredEnvSchema.safeParse(rawEnv);
-  if (!required.success) {
-    const missingOrInvalid = required.error.issues
+  const parsed = envSchema.safeParse(rawEnv);
+  if (!parsed.success) {
+    const missingOrInvalid = parsed.error.issues
       .map((issue) => issue.path.join('.'))
       .filter((value) => value.length > 0)
       .join(', ');
     throw new Error(`Missing or invalid required environment variables: ${missingOrInvalid}`);
   }
 
-  cachedEnv = envSchema.parse(rawEnv);
+  cachedEnv = parsed.data;
 
   return cachedEnv;
 }

@@ -2,9 +2,9 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import type { DemoAccount, UserProfile } from '@/lib/types';
+import type { UserProfile } from '@/lib/types';
 
-export function SessionControls({ currentProfile }: Readonly<{ currentProfile: UserProfile | null; accounts: DemoAccount[] }>) {
+export function SessionControls({ currentProfile }: Readonly<{ currentProfile: UserProfile | null }>) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

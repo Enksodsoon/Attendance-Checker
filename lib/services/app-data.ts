@@ -1463,24 +1463,6 @@ export function deleteEnrollment(enrollmentId: string) {
 }
 
 
-export function resolveProfileById(profileId: string) {
-  const profile = getState().profiles.find((item) => item.profileId === profileId && item.status === 'active');
-  return profile ? clone(profile) : null;
-}
-
-export function resolveProfileByLineUserId(lineUserId: string) {
-  const profile = getState().profiles.find((item) => item.lineUserId === lineUserId && item.status === 'active');
-  if (!profile) {
-    return null;
-  }
-
-  return clone({
-    profileId: profile.profileId,
-    lineUserId,
-    role: profile.role
-  });
-}
-
 export function bindStudentIdentity(profileId: string, input: { studentCode: string; fullNameTh: string; lineUserId?: string }) {
   const state = getState();
   const student = state.students.find((item) => item.studentCode === input.studentCode && item.fullNameTh === input.fullNameTh);

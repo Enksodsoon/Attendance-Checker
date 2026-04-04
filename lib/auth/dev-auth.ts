@@ -1,4 +1,5 @@
 export function isDevAuthEnabled() {
+  // DEV-ONLY: these bypasses must remain disabled in production runtime.
   if (process.env.ALLOW_DEV_AUTH === 'true') {
     return true;
   }

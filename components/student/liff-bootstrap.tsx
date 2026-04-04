@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { initializeLiff } from '@/lib/liff/client';
 import { LiffRegistrationForm } from '@/components/student/liff-registration-form';
 import type { LineProfile, StudentIdentity } from '@/lib/types';
@@ -13,7 +12,6 @@ type SessionResponse = {
 };
 
 export function LiffBootstrap({ student, liffId }: Readonly<{ student?: StudentIdentity; liffId: string }>) {
-  const router = useRouter();
   const [status, setStatus] = useState<'idle' | 'connecting' | 'signed_in' | 'registration_required' | 'error'>('idle');
   const [message, setMessage] = useState('กำลังเตรียม LIFF');
   const [lineProfile, setLineProfile] = useState<LineProfile | null>(null);
@@ -49,7 +47,6 @@ export function LiffBootstrap({ student, liffId }: Readonly<{ student?: StudentI
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            lineUserId: profile.userId,
             displayName: profile.displayName,
             pictureUrl: profile.pictureUrl,
             statusMessage: profile.statusMessage,
@@ -99,7 +96,7 @@ export function LiffBootstrap({ student, liffId }: Readonly<{ student?: StudentI
     return () => {
       cancelled = true;
     };
-  }, [liffId, router, student]);
+  }, [liffId, student]);
 
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-4 text-sm shadow-sm">

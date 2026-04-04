@@ -8,7 +8,6 @@ import { findProfileByLineUserId, updateLineAccountLoginMetadata } from '@/lib/s
 import { readValidatedJson } from '@/lib/utils/api';
 
 const schema = z.object({
-  lineUserId: z.string().min(5).optional(),
   displayName: z.string().min(1).optional(),
   pictureUrl: z.string().url().optional(),
   statusMessage: z.string().optional(),
@@ -27,7 +26,6 @@ export async function POST(request: Request) {
     identity = await verifyLineIdentity({
       accessToken: parsed.data.accessToken,
       idToken: parsed.data.idToken,
-      claimedLineUserId: parsed.data.lineUserId,
       claimedDisplayName: parsed.data.displayName,
       claimedPictureUrl: parsed.data.pictureUrl,
       claimedStatusMessage: parsed.data.statusMessage

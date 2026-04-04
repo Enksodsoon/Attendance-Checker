@@ -4,21 +4,17 @@ import { z } from 'zod';
 import { LINE_ID_COOKIE, SESSION_COOKIE } from '@/lib/auth/session';
 import { isSecureCookieRequired } from '@/lib/auth/dev-auth';
 import { verifyLineIdentity } from '@/lib/auth/line';
-import { createStudentFromLineRegistration } from '@/lib/services/db/accounts';
+import { claimStudentProfileWithLine } from '@/lib/services/db/accounts';
 import { readValidatedJson } from '@/lib/utils/api';
 
 const schema = z.object({
-  fullNameTh: z.string().min(2).max(120).optional(),
+  fullNameTh: z.string().min(2).max(120),
   studentCode: z.string().min(3).max(40),
-  email: z.string().email().optional().or(z.literal('')),
-  academicYear: z.coerce.number().int().min(1).max(8).optional(),
-  facultyName: z.string().max(120).optional(),
-  lineUserId: z.string().min(5).optional(),
+  accessToken: z.string().min(10).optional(),
+  idToken: z.string().min(10).optional(),
   displayName: z.string().min(1).optional(),
   pictureUrl: z.string().url().optional(),
-  statusMessage: z.string().optional(),
-  accessToken: z.string().min(10).optional(),
-  idToken: z.string().min(10).optional()
+  statusMessage: z.string().optional()
 });
 
 function mapRegistrationError(error: unknown) {
@@ -26,23 +22,23 @@ function mapRegistrationError(error: unknown) {
   const friendly = message.toLowerCase();
   const dbCode = typeof error === 'object' && error !== null && 'code' in error ? String((error as { code?: string }).code) : '';
 
-  if (friendly.includes('line_already_linked') || friendly.includes('already linked') || (dbCode === '23505' && friendly.includes('line_accounts'))) {
+  if (friendly.includes('line_already_linked') || (dbCode === '23505' && friendly.includes('line_accounts'))) {
     return { status: 409, error: 'LINE account is already linked. Please sign in with your existing account.' };
   }
 
-  if (friendly.includes('student_code') || friendly.includes('students_student_code_key')) {
-    return { status: 409, error: 'Student code is already used. Please check and try again.' };
+  if (friendly.includes('profile_already_linked')) {
+    return { status: 409, error: 'This student record is already linked to another LINE account.' };
   }
 
-  if (friendly.includes('profiles_email_key')) {
-    return { status: 409, error: 'This email is already used by another account.' };
+  if (friendly.includes('student_name_mismatch')) {
+    return { status: 409, error: 'Student code and full name do not match school records.' };
   }
 
-  if (friendly.includes('default organization')) {
-    return { status: 500, error: 'System setup is incomplete. Please contact admin to prepare default organization.' };
+  if (friendly.includes('student_not_found')) {
+    return { status: 404, error: 'Student record not found. Please contact your faculty office.' };
   }
 
-  return { status: 500, error: 'Registration failed unexpectedly. Please try again.' };
+  return { status: 500, error: 'Unable to claim student account. Please try again.' };
 }
 
 export async function POST(request: Request) {
@@ -56,7 +52,6 @@ export async function POST(request: Request) {
     identity = await verifyLineIdentity({
       accessToken: parsed.data.accessToken,
       idToken: parsed.data.idToken,
-      claimedLineUserId: parsed.data.lineUserId,
       claimedDisplayName: parsed.data.displayName,
       claimedPictureUrl: parsed.data.pictureUrl,
       claimedStatusMessage: parsed.data.statusMessage
@@ -69,18 +64,13 @@ export async function POST(request: Request) {
     );
   }
 
-  const fullNameTh = parsed.data.fullNameTh?.trim() || identity.displayName;
-
   try {
-    const created = await createStudentFromLineRegistration({
+    const created = await claimStudentProfileWithLine({
       lineUserId: identity.lineUserId,
       displayName: identity.displayName,
       pictureUrl: identity.pictureUrl,
-      fullNameTh,
-      studentCode: parsed.data.studentCode.trim(),
-      email: parsed.data.email?.trim() || undefined,
-      academicYear: parsed.data.academicYear,
-      facultyName: parsed.data.facultyName?.trim() || undefined
+      fullNameTh: parsed.data.fullNameTh.trim(),
+      studentCode: parsed.data.studentCode.trim()
     });
 
     const store = await cookies();

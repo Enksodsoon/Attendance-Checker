@@ -45,6 +45,19 @@ export function AccountForm({ initial }: Readonly<{ initial: AccountPayload }>) 
 
   return (
     <form onSubmit={save} className="mt-6 grid gap-3">
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+        <p className="font-medium text-slate-900">Linked LINE (read-only)</p>
+        {initial.lineAccount ? (
+          <div className="mt-1 space-y-1">
+            <p>Display name: {initial.lineAccount.displayName || '-'}</p>
+            <p>LINE User ID: {initial.lineAccount.lineUserId}</p>
+            <p>Picture URL: {initial.lineAccount.pictureUrl || '-'}</p>
+          </div>
+        ) : (
+          <p className="mt-1">No LINE account linked</p>
+        )}
+      </div>
+
       <label className="grid gap-1 text-sm">
         <span>Full name</span>
         <input value={fullNameTh} onChange={(event) => setFullNameTh(event.target.value)} className="rounded-xl border border-slate-300 px-3 py-2" required />

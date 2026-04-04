@@ -120,82 +120,69 @@ export async function updateLineAccountLoginMetadata(input: {
   }
 }
 
-export async function createStudentFromLineRegistration(input: {
+export async function claimStudentProfileWithLine(input: {
   lineUserId: string;
   displayName: string;
   pictureUrl?: string;
   fullNameTh: string;
   studentCode: string;
-  email?: string;
-  academicYear?: number;
-  facultyName?: string;
 }) {
   const admin = createSupabaseAdminClient();
-  const organizationId = await ensureDefaultOrganization();
+  const trimmedCode = input.studentCode.trim();
+  const trimmedName = input.fullNameTh.trim();
 
-  const { data: existingLink } = await admin
+  const { data: existingLinkByLine } = await admin
     .from('line_accounts')
     .select('profile_id')
     .eq('line_user_id', input.lineUserId)
     .maybeSingle();
 
-  if (existingLink?.profile_id) {
+  if (existingLinkByLine?.profile_id) {
     throw codedError('LINE_ALREADY_LINKED', 'LINE account is already linked to another profile');
   }
 
-  const { data: createdProfile, error: profileError } = await admin
-    .from('profiles')
-    .insert({
-      organization_id: organizationId,
-      full_name_th: input.fullNameTh,
-      email: input.email || null,
-      role: 'student',
-      status: 'active',
-      locale: 'th'
-    })
-    .select('id, role')
-    .single();
+  const { data: studentRow } = await admin
+    .from('students')
+    .select('profile_id, student_code, profiles!inner(id, full_name_th, role, status)')
+    .eq('student_code', trimmedCode)
+    .maybeSingle();
 
-  if (profileError || !createdProfile?.id) {
-    throw profileError ?? codedError('PROFILE_CREATE_FAILED', 'Failed to create profile');
-  }
-  const createdProfileId = createdProfile.id;
-
-  async function rollbackProfileArtifacts() {
-    await admin.from('students').delete().eq('profile_id', createdProfileId);
-    await admin.from('line_accounts').delete().eq('profile_id', createdProfileId);
-    await admin.from('profiles').delete().eq('id', createdProfileId);
+  const profileRow = Array.isArray(studentRow?.profiles) ? studentRow.profiles[0] : studentRow?.profiles;
+  if (!studentRow || !profileRow || profileRow.role !== 'student' || profileRow.status !== 'active') {
+    throw codedError('STUDENT_NOT_FOUND', 'No active student profile found for this student code');
   }
 
-  const { error: studentError } = await admin.from('students').insert({
-    profile_id: createdProfileId,
-    student_code: input.studentCode,
-    academic_year: input.academicYear ?? null,
-    faculty_name_th: input.facultyName ?? null
-  });
-
-  if (studentError) {
-    await rollbackProfileArtifacts();
-    throw studentError;
+  if (String(profileRow.full_name_th).trim() !== trimmedName) {
+    throw codedError('STUDENT_NAME_MISMATCH', 'Student name does not match school record');
   }
 
-  const { error: lineError } = await admin.from('line_accounts').insert({
-    profile_id: createdProfileId,
+  const profileId = String(profileRow.id);
+  const { data: existingLinkByProfile } = await admin
+    .from('line_accounts')
+    .select('line_user_id')
+    .eq('profile_id', profileId)
+    .maybeSingle();
+
+  if (existingLinkByProfile?.line_user_id && existingLinkByProfile.line_user_id !== input.lineUserId) {
+    throw codedError('PROFILE_ALREADY_LINKED', 'This student profile is linked to another LINE account');
+  }
+
+  const { error: lineError } = await admin.from('line_accounts').upsert({
+    profile_id: profileId,
     line_user_id: input.lineUserId,
     display_name: input.displayName,
     picture_url: input.pictureUrl ?? null,
     is_verified: true,
     last_login_at: new Date().toISOString()
-  });
+  }, { onConflict: 'profile_id' });
 
   if (lineError) {
-    await rollbackProfileArtifacts();
     throw lineError;
   }
 
   return {
-    profileId: createdProfileId,
-    role: mapRole(String(createdProfile.role))
+    profileId,
+    role: 'student' as const
   };
 }
 

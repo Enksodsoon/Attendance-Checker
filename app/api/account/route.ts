@@ -31,6 +31,12 @@ export async function PATCH(request: Request) {
   }
 
   const raw = await request.json().catch(() => null);
+  if (raw && typeof raw === 'object') {
+    const blockedKeys = ['lineUserId', 'role', 'profileId'];
+    if (blockedKeys.some((key) => key in (raw as Record<string, unknown>))) {
+      return NextResponse.json({ error: 'Cannot modify protected account fields' }, { status: 400 });
+    }
+  }
   const parsed = patchSchema.safeParse(raw ?? {});
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid input', issues: parsed.error.flatten() }, { status: 400 });

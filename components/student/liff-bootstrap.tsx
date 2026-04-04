@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { initializeLiff } from '@/lib/liff/client';
 import { LiffRegistrationForm } from '@/components/student/liff-registration-form';
@@ -10,12 +10,6 @@ type SessionResponse = {
   status?: 'ok' | 'registration_required' | 'verification_failed';
   role?: 'student' | 'teacher' | 'admin' | 'super_admin';
   error?: string;
-  identity?: {
-    lineUserId: string;
-    displayName: string;
-    pictureUrl?: string;
-    statusMessage?: string;
-  };
 };
 
 export function LiffBootstrap({ student, liffId }: Readonly<{ student?: StudentIdentity; liffId: string }>) {
@@ -23,9 +17,15 @@ export function LiffBootstrap({ student, liffId }: Readonly<{ student?: StudentI
   const [status, setStatus] = useState<'idle' | 'connecting' | 'signed_in' | 'registration_required' | 'error'>('idle');
   const [message, setMessage] = useState('กำลังเตรียม LIFF');
   const [lineProfile, setLineProfile] = useState<LineProfile | null>(null);
+  const startedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
+
+    if (startedRef.current) {
+      return;
+    }
+    startedRef.current = true;
 
     async function bootstrap() {
       if (student) {
@@ -75,20 +75,20 @@ export function LiffBootstrap({ student, liffId }: Readonly<{ student?: StudentI
         if (json.role === 'admin' || json.role === 'super_admin') {
           setStatus('signed_in');
           setMessage('เชื่อมต่อสำเร็จ กำลังพาไปหน้าแอดมิน...');
-          router.replace('/admin');
+          window.location.replace('/admin');
           return;
         }
 
         if (json.role === 'teacher') {
           setStatus('signed_in');
           setMessage('เชื่อมต่อสำเร็จ กำลังพาไปหน้าอาจารย์...');
-          router.replace('/teacher/sessions');
+          window.location.replace('/teacher/sessions');
           return;
         }
 
         setStatus('signed_in');
-        setMessage('เชื่อมต่อสำเร็จ กำลังโหลดข้อมูลนักศึกษา...');
-        router.refresh();
+        setMessage('เชื่อมต่อสำเร็จ กำลังเข้าสู่ระบบ...');
+        window.location.replace('/liff');
       } catch (error) {
         setStatus('error');
         setMessage(error instanceof Error ? error.message : 'เชื่อมต่อ LIFF ไม่สำเร็จ');

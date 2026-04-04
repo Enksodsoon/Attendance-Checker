@@ -57,13 +57,11 @@ export async function POST(request: Request) {
     });
   }
 
-  if (account) {
-    await updateLineAccountLoginMetadata({
-      lineUserId: identity.lineUserId,
-      displayName: identity.displayName,
-      pictureUrl: identity.pictureUrl
-    });
-  }
+  await updateLineAccountLoginMetadata({
+    lineUserId: identity.lineUserId,
+    displayName: identity.displayName,
+    pictureUrl: identity.pictureUrl
+  });
 
   const store = await cookies();
   store.set(

@@ -26,7 +26,7 @@ function mapRegistrationError(error: unknown) {
   const friendly = message.toLowerCase();
   const dbCode = typeof error === 'object' && error !== null && 'code' in error ? String((error as { code?: string }).code) : '';
 
-  if (friendly.includes('line_already_linked') || friendly.includes('already linked') || dbCode === '23505' && friendly.includes('line_accounts')) {
+  if (friendly.includes('line_already_linked') || friendly.includes('already linked') || (dbCode === '23505' && friendly.includes('line_accounts'))) {
     return { status: 409, error: 'LINE account is already linked. Please sign in with your existing account.' };
   }
 

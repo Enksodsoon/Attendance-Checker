@@ -9,6 +9,10 @@ function mapRole(role: string): Role {
   return 'student';
 }
 
+function codedError(code: string, message: string) {
+  return new Error(`${code}: ${message}`);
+}
+
 export async function ensureDefaultOrganization() {
   const admin = createSupabaseAdminClient();
   const fallbackCode = process.env.DEFAULT_ORGANIZATION_CODE || 'DEFAULT';
@@ -48,7 +52,7 @@ export async function ensureDefaultOrganization() {
     .maybeSingle();
 
   if (!created?.id) {
-    throw new Error('Unable to prepare default organization');
+    throw codedError('DEFAULT_ORG_UNAVAILABLE', 'Unable to prepare default organization');
   }
 
   return created.id;
@@ -115,7 +119,7 @@ export async function createStudentFromLineRegistration(input: {
     .maybeSingle();
 
   if (existingLink?.profile_id) {
-    throw new Error('LINE account is already linked to another profile');
+    throw codedError('LINE_ALREADY_LINKED', 'LINE account is already linked to another profile');
   }
 
   const { data: createdProfile, error: profileError } = await admin
@@ -132,23 +136,30 @@ export async function createStudentFromLineRegistration(input: {
     .single();
 
   if (profileError || !createdProfile?.id) {
-    throw profileError ?? new Error('Failed to create profile');
+    throw profileError ?? codedError('PROFILE_CREATE_FAILED', 'Failed to create profile');
+  }
+  const createdProfileId = createdProfile.id;
+
+  async function rollbackProfileArtifacts() {
+    await admin.from('students').delete().eq('profile_id', createdProfileId);
+    await admin.from('line_accounts').delete().eq('profile_id', createdProfileId);
+    await admin.from('profiles').delete().eq('id', createdProfileId);
   }
 
   const { error: studentError } = await admin.from('students').insert({
-    profile_id: createdProfile.id,
+    profile_id: createdProfileId,
     student_code: input.studentCode,
     academic_year: input.academicYear ?? null,
     faculty_name_th: input.facultyName ?? null
   });
 
   if (studentError) {
-    await admin.from('profiles').delete().eq('id', createdProfile.id);
+    await rollbackProfileArtifacts();
     throw studentError;
   }
 
   const { error: lineError } = await admin.from('line_accounts').insert({
-    profile_id: createdProfile.id,
+    profile_id: createdProfileId,
     line_user_id: input.lineUserId,
     display_name: input.displayName,
     picture_url: input.pictureUrl ?? null,
@@ -157,13 +168,12 @@ export async function createStudentFromLineRegistration(input: {
   });
 
   if (lineError) {
-    await admin.from('students').delete().eq('profile_id', createdProfile.id);
-    await admin.from('profiles').delete().eq('id', createdProfile.id);
+    await rollbackProfileArtifacts();
     throw lineError;
   }
 
   return {
-    profileId: createdProfile.id,
+    profileId: createdProfileId,
     role: mapRole(String(createdProfile.role))
   };
 }

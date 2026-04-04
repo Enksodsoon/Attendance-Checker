@@ -24,8 +24,9 @@ const schema = z.object({
 function mapRegistrationError(error: unknown) {
   const message = error instanceof Error ? error.message : 'Registration failed';
   const friendly = message.toLowerCase();
+  const dbCode = typeof error === 'object' && error !== null && 'code' in error ? String((error as { code?: string }).code) : '';
 
-  if (friendly.includes('already linked')) {
+  if (friendly.includes('line_already_linked') || friendly.includes('already linked') || dbCode === '23505' && friendly.includes('line_accounts')) {
     return { status: 409, error: 'LINE account is already linked. Please sign in with your existing account.' };
   }
 
@@ -61,6 +62,7 @@ export async function POST(request: Request) {
       claimedStatusMessage: parsed.data.statusMessage
     });
   } catch (error) {
+    console.error('[liff/register] LINE verification failed', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'LINE verification failed. Please sign in again.' },
       { status: 401 }
@@ -108,6 +110,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ status: 'ok', profileId: created.profileId, role: created.role });
   } catch (error) {
+    console.error('[liff/register] Registration failed', error);
     const mapped = mapRegistrationError(error);
     return NextResponse.json({ error: mapped.error }, { status: mapped.status });
   }

@@ -35,7 +35,8 @@ async function verifyWithAccessToken(accessToken: string) {
   });
 
   if (!verifyResponse.ok) {
-    throw new Error('LINE access token verification failed');
+    const detail = await verifyResponse.text();
+    throw new Error(`LINE access token verification failed (${verifyResponse.status}): ${detail}`);
   }
 
   const verifyPayload = (await verifyResponse.json()) as { client_id?: string };
@@ -51,7 +52,8 @@ async function verifyWithAccessToken(accessToken: string) {
   });
 
   if (!profileResponse.ok) {
-    throw new Error('Unable to load LINE profile from access token');
+    const detail = await profileResponse.text();
+    throw new Error(`Unable to load LINE profile from access token (${profileResponse.status}): ${detail}`);
   }
 
   const profilePayload = (await profileResponse.json()) as {
@@ -93,7 +95,8 @@ async function verifyWithIdToken(idToken: string) {
   });
 
   if (!response.ok) {
-    throw new Error('LINE ID token verification failed');
+    const detail = await response.text();
+    throw new Error(`LINE ID token verification failed (${response.status}): ${detail}`);
   }
 
   const payload = (await response.json()) as {
@@ -137,11 +140,6 @@ export async function verifyLineIdentity(input: VerifyLineIdentityInput): Promis
   const claimedUserId = normalizeText(input.claimedLineUserId);
   if (claimedUserId && claimedUserId !== identity.lineUserId) {
     throw new Error('LINE identity mismatch');
-  }
-
-  const claimedName = normalizeText(input.claimedDisplayName);
-  if (claimedName && identity.displayName !== claimedName) {
-    identity = { ...identity, displayName: claimedName };
   }
 
   return identity;

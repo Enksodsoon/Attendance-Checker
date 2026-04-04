@@ -17,6 +17,10 @@ function pickFirst<T>(value: T | T[] | null | undefined): T | null {
   return value ?? null;
 }
 
+/**
+ * Expected relational path:
+ * LINE -> line_accounts -> profiles -> students -> student_enrollments -> course_sections -> class_sessions
+ */
 function mapSession(rawRow: Row): SessionSummary {
   const room = pickFirst(rawRow.rooms as Row | Row[] | null);
   const teacher = pickFirst(rawRow.teachers as Row | Row[] | null);
@@ -36,7 +40,7 @@ function mapSession(rawRow: Row): SessionSummary {
       latitude: Number(room?.latitude ?? 0),
       longitude: Number(room?.longitude ?? 0),
       defaultRadiusM: Number(room?.default_radius_m ?? 100),
-      gpsPolicy: (String(room?.gps_policy ?? 'allow_manual_approval') as SessionSummary['room']['gpsPolicy'])
+      gpsPolicy: String(room?.gps_policy ?? 'allow_manual_approval') as SessionSummary['room']['gpsPolicy']
     },
     status: String(rawRow.status ?? 'draft') as SessionSummary['status'],
     verificationMode: String(rawRow.verification_mode ?? 'gps_qr_timewindow') as SessionSummary['verificationMode'],
@@ -55,21 +59,27 @@ function mapSession(rawRow: Row): SessionSummary {
 export async function getStudentIdentityByProfile(profileId: string): Promise<StudentIdentity | null> {
   const admin = createSupabaseAdminClient();
   const { data } = await admin
-    .from('students')
-    .select('id, student_code, profiles!inner(id, full_name_th), line_accounts(line_user_id)')
-    .eq('profile_id', profileId)
+    .from('profiles')
+    .select('id, full_name_th, students(id, student_code), line_accounts(line_user_id)')
+    .eq('id', profileId)
     .maybeSingle();
 
-  if (!data) return null;
+  if (!data) {
+    return null;
+  }
 
-  const profileData = pickFirst(data.profiles as Row | Row[] | null);
-  const lineAccount = pickFirst(data.line_accounts as Row | Row[] | null);
+  const studentRow = pickFirst((data.students as Row | Row[] | null) ?? null);
+  if (!studentRow?.id || !studentRow.student_code) {
+    return null;
+  }
+
+  const lineAccount = pickFirst((data.line_accounts as Row | Row[] | null) ?? null);
 
   return {
-    profileId,
-    studentId: String(data.id),
-    studentCode: String(data.student_code),
-    fullNameTh: String(profileData?.full_name_th ?? '-'),
+    profileId: String(data.id),
+    studentId: String(studentRow.id),
+    studentCode: String(studentRow.student_code),
+    fullNameTh: String(data.full_name_th ?? '-'),
     lineUserId: String(lineAccount?.line_user_id ?? ''),
     role: 'student'
   };
@@ -80,23 +90,33 @@ export async function getStudentSessions(profileId: string) {
   if (!identity) return [];
 
   const admin = createSupabaseAdminClient();
-  const { data } = await admin
+  const { data: enrollments } = await admin
     .from('student_enrollments')
-    .select(`
-      class_sessions:class_sessions!inner(
-        id,status,verification_mode,attendance_mode,allow_manual_approval,
-        scheduled_start_at,scheduled_end_at,attendance_open_at,late_after_at,attendance_close_at,
-        rooms(id,name_th,latitude,longitude,default_radius_m,gps_policy),
-        teachers(id,profiles(full_name_th)),
-        course_sections(id,section_code,courses(course_code,name_th))
-      )
-    `)
-    .eq('student_id', identity.studentId);
+    .select('course_section_id')
+    .eq('student_id', identity.studentId)
+    .eq('enrollment_status', 'enrolled');
 
-  const rows = (data ?? [])
-    .map((row) => pickFirst((row as Row).class_sessions as Row | Row[] | null))
-    .filter((row): row is Row => Boolean(row));
-  return rows.map(mapSession);
+  const sectionIds = (enrollments ?? [])
+    .map((item) => item.course_section_id)
+    .filter((value): value is string => Boolean(value));
+
+  if (sectionIds.length === 0) {
+    return [];
+  }
+
+  const { data: sessions } = await admin
+    .from('class_sessions')
+    .select(`
+      id,status,verification_mode,attendance_mode,allow_manual_approval,
+      scheduled_start_at,scheduled_end_at,attendance_open_at,late_after_at,attendance_close_at,
+      rooms(id,name_th,latitude,longitude,default_radius_m,gps_policy),
+      teachers(id,profiles(full_name_th)),
+      course_sections(id,section_code,courses(course_code,name_th))
+    `)
+    .in('course_section_id', sectionIds)
+    .order('scheduled_start_at', { ascending: true });
+
+  return (sessions ?? []).map((row) => mapSession(row as Row));
 }
 
 export async function getCurrentQrToken(sessionId: string): Promise<string | null> {
@@ -137,11 +157,23 @@ export async function isStudentEnrolled(profileId: string, sessionId: string): P
   if (!identity) return false;
 
   const admin = createSupabaseAdminClient();
+  const { data: session } = await admin
+    .from('class_sessions')
+    .select('course_section_id')
+    .eq('id', sessionId)
+    .maybeSingle();
+
+  const sectionId = session?.course_section_id;
+  if (!sectionId) {
+    return false;
+  }
+
   const { data } = await admin
     .from('student_enrollments')
     .select('id')
     .eq('student_id', identity.studentId)
-    .eq('class_session_id', sessionId)
+    .eq('course_section_id', sectionId)
+    .eq('enrollment_status', 'enrolled')
     .limit(1);
 
   return Boolean(data && data.length > 0);
@@ -220,7 +252,19 @@ export async function recordAttendanceDecision(params: {
 export async function getStudentDashboard(profileId: string): Promise<StudentDashboardData> {
   const identity = await getStudentIdentityByProfile(profileId);
   if (!identity) {
-    throw new Error('Student profile not found');
+    return {
+      student: {
+        profileId,
+        studentId: '',
+        studentCode: '',
+        fullNameTh: '-',
+        lineUserId: '',
+        role: 'student'
+      },
+      activeSessions: [],
+      summary: { totalPresent: 0, totalLate: 0, totalPending: 0, totalAbsent: 0 },
+      recentHistory: []
+    };
   }
 
   const [activeSessions, history] = await Promise.all([getStudentSessions(profileId), getStudentHistory(profileId)]);

@@ -2,7 +2,7 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { LINE_ID_COOKIE, SESSION_COOKIE } from '@/lib/auth/session';
-import { isDevAuthEnabled, isSecureCookieRequired } from '@/lib/auth/dev-auth';
+import { isSecureCookieRequired } from '@/lib/auth/dev-auth';
 import { verifyLineIdentity } from '@/lib/auth/line';
 import { findProfileByLineUserId, updateLineAccountLoginMetadata } from '@/lib/services/db/accounts';
 import { readValidatedJson } from '@/lib/utils/api';
@@ -13,8 +13,7 @@ const schema = z.object({
   pictureUrl: z.string().url().optional(),
   statusMessage: z.string().optional(),
   accessToken: z.string().min(10).optional(),
-  idToken: z.string().min(10).optional(),
-  allowDevFallback: z.boolean().optional()
+  idToken: z.string().min(10).optional()
 });
 
 export async function POST(request: Request) {
@@ -34,6 +33,7 @@ export async function POST(request: Request) {
       claimedStatusMessage: parsed.data.statusMessage
     });
   } catch (error) {
+    console.error('[liff/session] LINE verification failed', error);
     return NextResponse.json(
       {
         status: 'verification_failed',
@@ -45,20 +45,7 @@ export async function POST(request: Request) {
 
   const account = await findProfileByLineUserId(identity.lineUserId);
 
-  let profileId = account?.profileId;
-  let role = account?.role;
-  const devAutoBound = false;
-  let offlineFallback = false;
-
-  if (!account && parsed.data.allowDevFallback && isDevAuthEnabled()) {
-    if (process.env.ALLOW_OFFLINE_DEV_SESSION === 'true') {
-      profileId = 'offline-super-admin';
-      role = 'super_admin';
-      offlineFallback = true;
-    }
-  }
-
-  if (!profileId || !role) {
+  if (!account?.profileId || !account.role) {
     return NextResponse.json({
       status: 'registration_required',
       identity: {
@@ -81,7 +68,7 @@ export async function POST(request: Request) {
   const store = await cookies();
   store.set(
     SESSION_COOKIE,
-    JSON.stringify({ profileId, role }),
+    JSON.stringify({ profileId: account.profileId, role: account.role }),
     {
       httpOnly: true,
       sameSite: 'lax',
@@ -103,5 +90,5 @@ export async function POST(request: Request) {
     }
   );
 
-  return NextResponse.json({ status: 'ok', profileId, role, devAutoBound, offlineFallback });
+  return NextResponse.json({ status: 'ok', profileId: account.profileId, role: account.role });
 }

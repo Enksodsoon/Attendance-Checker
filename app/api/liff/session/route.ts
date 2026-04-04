@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { LINE_ID_COOKIE, SESSION_COOKIE } from '@/lib/auth/session';
 import { isSecureCookieRequired } from '@/lib/auth/dev-auth';
 import { verifyLineIdentity } from '@/lib/auth/line';
-import { findProfileByLineUserId, updateLineAccountLoginMetadata } from '@/lib/services/db/accounts';
+import { findAnyLineLinkByUserId, findProfileByLineUserId, updateLineAccountLoginMetadata } from '@/lib/services/db/accounts';
 import { readValidatedJson } from '@/lib/utils/api';
 
 const schema = z.object({
@@ -44,6 +44,14 @@ export async function POST(request: Request) {
   const account = await findProfileByLineUserId(identity.lineUserId);
 
   if (!account?.profileId || !account.role) {
+    const existingLink = await findAnyLineLinkByUserId(identity.lineUserId);
+    if (existingLink && (existingLink.status !== 'active' || existingLink.role !== 'student')) {
+      return NextResponse.json({
+        status: 'contact_admin',
+        error: 'This LINE account is not linked for student self-claim. Please contact an administrator.'
+      });
+    }
+
     return NextResponse.json({
       status: 'registration_required',
       identity: {

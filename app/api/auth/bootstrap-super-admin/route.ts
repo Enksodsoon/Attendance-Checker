@@ -5,7 +5,6 @@ import { SESSION_COOKIE } from '@/lib/auth/session';
 import { isSecureCookieRequired } from '@/lib/auth/dev-auth';
 import { getSafeNext } from '@/lib/auth/safe-redirect';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
-import { addAdminUser } from '@/lib/services/app-data';
 
 const schema = z.object({
   secret: z.string().min(1),
@@ -68,27 +67,7 @@ export async function POST(request: Request) {
   }
 
   if (!orgId) {
-    const localUser = addAdminUser({
-      name: normalizedFullName,
-      email: parsed.data.email || `bootstrap-${Date.now()}@local.dev`,
-      role: 'super_admin',
-      lineUserId: parsed.data.lineUserId
-    });
-
-    const localStore = await cookies();
-    localStore.set(
-      SESSION_COOKIE,
-      JSON.stringify({ profileId: localUser.profileId, role: 'super_admin' }),
-      {
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: isSecureCookieRequired(),
-        path: '/',
-        maxAge: 60 * 60 * 8
-      }
-    );
-
-    return NextResponse.redirect(new URL(nextPath, request.url));
+    return NextResponse.json({ error: 'Bootstrap organization is unavailable. Please configure the database first.' }, { status: 500 });
   }
 
   let profileId: string;

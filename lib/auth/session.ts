@@ -18,10 +18,6 @@ function mapRole(role: string): AppRole {
   return 'student';
 }
 
-function canUseOfflineSession() {
-  return process.env.ALLOW_OFFLINE_DEV_SESSION === 'true';
-}
-
 async function getProfileById(profileId: string): Promise<UserProfile | null> {
   try {
     const admin = createSupabaseAdminClient();
@@ -59,17 +55,6 @@ export async function getSessionProfile() {
         const profile = await getProfileById(parsed.profileId);
         if (profile && profile.status === 'active') {
           return profile;
-        }
-
-        if (canUseOfflineSession()) {
-          return {
-            profileId: parsed.profileId,
-            name: 'Offline Admin',
-            email: '',
-            role: mapRole(parsed.role),
-            status: 'active',
-            lastActiveAt: new Date().toISOString()
-          } satisfies UserProfile;
         }
       }
     } catch {

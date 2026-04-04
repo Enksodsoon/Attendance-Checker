@@ -1,14 +1,6 @@
 export function isDevAuthEnabled() {
-  // DEV-ONLY: these bypasses must remain disabled in production runtime.
-  if (process.env.ALLOW_DEV_AUTH === 'true') {
-    return true;
-  }
-
-  if (process.env.VERCEL_ENV === 'preview') {
-    return true;
-  }
-
-  return process.env.NODE_ENV !== 'production';
+  // DEV-ONLY: bypasses are disabled by default and require explicit opt-in.
+  return process.env.ALLOW_DEV_AUTH === 'true';
 }
 
 export function isSecureCookieRequired() {

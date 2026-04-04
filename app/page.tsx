@@ -1,12 +1,10 @@
 import Link from 'next/link';
 import { getSessionProfile } from '@/lib/auth/session';
-import { isDevAuthEnabled } from '@/lib/auth/dev-auth';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
   const currentProfile = await getSessionProfile();
-  const devAuthEnabled = isDevAuthEnabled();
 
   return (
     <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-8 px-6 py-10">
@@ -27,16 +25,6 @@ export default async function HomePage() {
         ) : null}
       </section>
 
-      <section className="rounded-3xl border border-[var(--border)] bg-white p-8 shadow-sm">
-        <h2 className="text-xl font-semibold text-slate-900">Admin and setup tools</h2>
-        <div className="mt-4 flex flex-wrap gap-3 text-sm">
-          <Link href="/register/super-admin" className="rounded-full border border-teal-300 px-4 py-2 text-teal-700">Register super admin</Link>
-          <Link href="/register/offline-admin" className="rounded-full border border-rose-300 px-4 py-2 text-rose-700">Offline admin login</Link>
-          <Link href="/teacher/sessions" className="rounded-full border border-slate-300 px-4 py-2 text-slate-700">Teacher console</Link>
-          <Link href="/admin" className="rounded-full border border-slate-300 px-4 py-2 text-slate-700">Admin console</Link>
-          {devAuthEnabled ? <Link href="/api/auth/dev-admin-login" className="rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-amber-800">DEV admin login</Link> : null}
-        </div>
-      </section>
     </main>
   );
 }

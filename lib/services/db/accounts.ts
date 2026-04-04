@@ -99,6 +99,27 @@ export async function findProfileByLineUserId(lineUserId: string) {
   };
 }
 
+export async function findAnyLineLinkByUserId(lineUserId: string) {
+  const admin = createSupabaseAdminClient();
+  const { data } = await admin
+    .from('line_accounts')
+    .select('profile_id, line_user_id, profiles!inner(role, status)')
+    .eq('line_user_id', lineUserId)
+    .maybeSingle();
+
+  const profileRow = Array.isArray(data?.profiles) ? data.profiles[0] : data?.profiles;
+  if (!data || !profileRow) {
+    return null;
+  }
+
+  return {
+    profileId: data.profile_id,
+    lineUserId: data.line_user_id,
+    role: mapRole(String(profileRow.role)),
+    status: String(profileRow.status)
+  };
+}
+
 export async function updateLineAccountLoginMetadata(input: {
   lineUserId: string;
   displayName: string;

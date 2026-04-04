@@ -6,7 +6,7 @@ import { LiffRegistrationForm } from '@/components/student/liff-registration-for
 import type { LineProfile, StudentIdentity } from '@/lib/types';
 
 type SessionResponse = {
-  status?: 'ok' | 'registration_required' | 'verification_failed';
+  status?: 'ok' | 'registration_required' | 'verification_failed' | 'contact_admin';
   role?: 'student' | 'teacher' | 'admin' | 'super_admin';
   error?: string;
 };
@@ -20,7 +20,7 @@ export function markBootstrapStartedOnce(startedRef: { current: boolean }) {
 }
 
 export function LiffBootstrap({ student, liffId }: Readonly<{ student?: StudentIdentity; liffId: string }>) {
-  const [status, setStatus] = useState<'idle' | 'connecting' | 'signed_in' | 'registration_required' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'connecting' | 'signed_in' | 'registration_required' | 'contact_admin' | 'error'>('idle');
   const [message, setMessage] = useState('กำลังเตรียม LIFF');
   const [lineProfile, setLineProfile] = useState<LineProfile | null>(null);
   const startedRef = useRef(false);
@@ -76,6 +76,12 @@ export function LiffBootstrap({ student, liffId }: Readonly<{ student?: StudentI
           return;
         }
 
+        if (json.status === 'contact_admin') {
+          setStatus('contact_admin');
+          setMessage(json.error ?? 'บัญชี LINE นี้ยังไม่ถูกเชื่อมต่อ กรุณาติดต่อผู้ดูแลระบบ');
+          return;
+        }
+
         if (json.role === 'admin' || json.role === 'super_admin') {
           setStatus('signed_in');
           setMessage('เชื่อมต่อสำเร็จ กำลังพาไปหน้าแอดมิน...');
@@ -115,7 +121,7 @@ export function LiffBootstrap({ student, liffId }: Readonly<{ student?: StudentI
           <p>LINE User ID: {student.lineUserId || 'ยังไม่ได้ bind'}</p>
         </div>
       ) : null}
-      <p className={`mt-3 rounded-xl px-3 py-2 ${status === 'error' ? 'bg-rose-50 text-rose-700' : status === 'registration_required' ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-700'}`}>{message}</p>
+      <p className={`mt-3 rounded-xl px-3 py-2 ${status === 'error' ? 'bg-rose-50 text-rose-700' : status === 'registration_required' ? 'bg-amber-50 text-amber-800' : status === 'contact_admin' ? 'bg-sky-50 text-sky-800' : 'bg-emerald-50 text-emerald-700'}`}>{message}</p>
 
       {status === 'registration_required' && lineProfile ? <div className="mt-4"><LiffRegistrationForm identity={lineProfile} /></div> : null}
     </section>

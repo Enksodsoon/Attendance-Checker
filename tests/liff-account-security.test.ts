@@ -20,6 +20,7 @@ vi.mock('@/lib/auth/line', () => ({
 
 vi.mock('@/lib/services/db/accounts', () => ({
   findProfileByLineUserId: vi.fn(),
+  findAnyLineLinkByUserId: vi.fn(),
   updateLineAccountLoginMetadata: vi.fn(),
   claimStudentProfileWithLine: vi.fn(),
   updateOwnAccount: vi.fn()
@@ -30,7 +31,7 @@ import { POST as liffRegisterPost } from '@/app/api/liff/register/route';
 import { PATCH as accountPatch } from '@/app/api/account/route';
 import { markBootstrapStartedOnce } from '@/components/student/liff-bootstrap';
 import { getSessionProfile } from '@/lib/auth/session';
-import { claimStudentProfileWithLine, findProfileByLineUserId, updateOwnAccount } from '@/lib/services/db/accounts';
+import { claimStudentProfileWithLine, findAnyLineLinkByUserId, findProfileByLineUserId, updateOwnAccount } from '@/lib/services/db/accounts';
 import { verifyLineIdentity } from '@/lib/auth/line';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -63,6 +64,7 @@ describe('LIFF and account security flows', () => {
       displayName: 'Student A'
     });
     vi.mocked(findProfileByLineUserId).mockResolvedValue(null);
+    vi.mocked(findAnyLineLinkByUserId).mockResolvedValue(null);
 
     const response = await liffSessionPost(new Request('http://localhost/api/liff/session', {
       method: 'POST',
@@ -72,6 +74,29 @@ describe('LIFF and account security flows', () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ status: 'registration_required' });
+  });
+
+  it('returns contact_admin when an unlinked LINE account is not eligible for student self-claim', async () => {
+    vi.mocked(verifyLineIdentity).mockResolvedValue({
+      lineUserId: 'U-line-staff',
+      displayName: 'Teacher X'
+    });
+    vi.mocked(findProfileByLineUserId).mockResolvedValue(null);
+    vi.mocked(findAnyLineLinkByUserId).mockResolvedValue({
+      profileId: 'profile-teacher-1',
+      lineUserId: 'U-line-staff',
+      role: 'teacher',
+      status: 'inactive'
+    });
+
+    const response = await liffSessionPost(new Request('http://localhost/api/liff/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accessToken: 'valid-access-token-12345' })
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ status: 'contact_admin' });
   });
 
   it('claims an existing unlinked student record successfully', async () => {
@@ -142,6 +167,46 @@ describe('LIFF and account security flows', () => {
     await expect(response.json()).resolves.toMatchObject({
       error: 'LINE account is already linked. Please sign in with your existing account.'
     });
+  });
+
+  it('rejects claim when student name does not match school records', async () => {
+    vi.mocked(verifyLineIdentity).mockResolvedValue({
+      lineUserId: 'U-line-5',
+      displayName: 'Student E'
+    });
+    vi.mocked(claimStudentProfileWithLine).mockRejectedValue(new Error('STUDENT_NAME_MISMATCH: conflict'));
+
+    const response = await liffRegisterPost(new Request('http://localhost/api/liff/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        studentCode: '6533333333',
+        fullNameTh: 'Student E',
+        accessToken: 'valid-access-token-12345'
+      })
+    }));
+
+    expect(response.status).toBe(409);
+  });
+
+  it('rejects claim when student record is not found', async () => {
+    vi.mocked(verifyLineIdentity).mockResolvedValue({
+      lineUserId: 'U-line-6',
+      displayName: 'Student F'
+    });
+    vi.mocked(claimStudentProfileWithLine).mockRejectedValue(new Error('STUDENT_NOT_FOUND: conflict'));
+
+    const response = await liffRegisterPost(new Request('http://localhost/api/liff/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        studentCode: '6544444444',
+        fullNameTh: 'Student F',
+        accessToken: 'valid-access-token-12345'
+      })
+    }));
+
+    expect(response.status).toBe(404);
   });
 
   it('blocks account PATCH from changing line identity fields', async () => {
